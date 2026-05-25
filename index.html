@@ -91,7 +91,7 @@ async function updateDoc(collection, id, data) {
   } catch(e) { console.error('Update error:', e); }
 }
 
-
+const { useState, useEffect } = React;
 
 
 
@@ -155,14 +155,14 @@ const PAYMENT_OPTIONS = [
 const paymentLabel = (key)=>PAYMENT_OPTIONS.find(p=>p.key===key)?.label||key||"未設定";
 
 // ========== DEMO DATA ==========
-const INIT_STAFF_DEFAULT = [
+const INIT_STAFF = [
   {id:"admin1", name:"斎藤 志穂子", role:"admin", email:"admin@care.jp", password:"admin123", phone:"090-5555-6666", assignedClientIds:[1,2], shiftRequests:[], confirmedShifts:[]},
   {id:"staff1", name:"佐藤 美咲",     role:"staff",  email:"misaki@care.jp",  password:"staff123", phone:"090-1111-2222", assignedClientIds:[1], shiftRequests:[], confirmedShifts:[]},
   {id:"staff2", name:"鈴木 健太",     role:"staff",  email:"kenta@care.jp",   password:"staff456", phone:"090-3333-4444", assignedClientIds:[2], shiftRequests:[], confirmedShifts:[]},
   {id:"fam1",   name:"山田 太郎",     role:"family", email:"yamada@care.jp",  password:"fam123",   phone:"", assignedClientIds:[], clientId:1, shiftRequests:[], confirmedShifts:[]},
 ];
 
-const INIT_CLIENTS_DEFAULT = [
+const INIT_CLIENTS = [
   {id:1, name:"山田 花子", age:82, address:"東京都渋谷区〇〇1-2-3", diagnosis:"認知症（アルツハイマー型）、高血圧", emergency:"山田 太郎（長男） 090-1234-5678", life:"昭和17年生まれ。元教師。音楽が好きで、特に昭和歌謡を愛した。料理が得意で、近所に料理を振る舞うのが喜びだった。几帳面な性格。", notes:"大きな声を嫌がる。名前で呼ばれると安心する。", paymentMethod:"monthly_bank", records:[], schedules:[]},
   {id:2, name:"田中 一郎", age:75, address:"東京都新宿区△△3-4-5", diagnosis:"パーキンソン病、糖尿病", emergency:"田中 恵子（妻） 090-9876-5432", life:"昭和24年生まれ。元大工。手先が器用で木工細工が趣味。地域の祭りを取り仕切っていた。プライドが高く人に頼ることが苦手。", notes:"「ありがとう」より「助かった」と言うタイプ。", paymentMethod:"day_cash", records:[], schedules:[]},
 ];
@@ -1204,7 +1204,7 @@ function App(){
       if(fbClients.length>0){ setClients(fbClients); }
       else if(!clientsLoaded){
         // 初回のみサンプルデータを投入
-        INIT_CLIENTS_DEFAULT.forEach(c=>{ db.collection('clients').doc(String(c.id)).set(c); });
+        INIT_CLIENTS.forEach(c=>{ db.collection('clients').doc(String(c.id)).set(c); });
         setClientsLoaded(true);
       }
     }
@@ -1215,7 +1215,7 @@ function App(){
     if(!staffLoading){
       if(fbStaff.length>0){ setStaffList(fbStaff); }
       else {
-        INIT_STAFF_DEFAULT.filter(s=>s.role!=='family').forEach(s=>{ db.collection('staff').doc(s.id).set(s); });
+        INIT_STAFF.filter(s=>s.role!=='family').forEach(s=>{ db.collection('staff').doc(s.id).set(s); });
       }
     }
   },[fbStaff,staffLoading]);
