@@ -21,11 +21,76 @@
   </div>
   <div id="root"></div>
 
+  <!-- React -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDzTRsI-AZE4DN2ILROmb7oSkdbJYn6ZhU",
+  authDomain: "kurashi-care.firebaseapp.com",
+  projectId: "kurashi-care",
+  storageBucket: "kurashi-care.firebasestorage.app",
+  messagingSenderId: "293234386482",
+  appId: "1:293234386482:web:5e97c94b9d402dc6927e2b"
+};
+
+// Firebase初期化
+const firebaseApp = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+  </script>
+
   <script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+
+// ========== FIREBASE HELPERS ==========
+function useFirestore(collection) {
+  const [data, setData] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const unsubscribe = db.collection(collection)
+      .onSnapshot(snapshot => {
+        const items = snapshot.docs.map(doc => ({ ...doc.data(), _id: doc.id }));
+        setData(items);
+        setLoading(false);
+      }, err => {
+        console.error(err);
+        setLoading(false);
+      });
+    return () => unsubscribe();
+  }, [collection]);
+
+  return { data, loading };
+}
+
+async function saveDoc(collection, id, data) {
+  try {
+    await db.collection(collection).doc(String(id)).set(data, { merge: true });
+  } catch(e) { console.error('Save error:', e); }
+}
+
+async function addDoc(collection, data) {
+  try {
+    const ref = await db.collection(collection).add(data);
+    return ref.id;
+  } catch(e) { console.error('Add error:', e); return null; }
+}
+
+async function updateDoc(collection, id, data) {
+  try {
+    await db.collection(collection).doc(String(id)).update(data);
+  } catch(e) { console.error('Update error:', e); }
+}
+
 const { useState, useEffect } = React;
 
 
@@ -90,14 +155,14 @@ const PAYMENT_OPTIONS = [
 const paymentLabel = (key)=>PAYMENT_OPTIONS.find(p=>p.key===key)?.label||key||"未設定";
 
 // ========== DEMO DATA ==========
-const INIT_STAFF = [
+const INIT_STAFF_DEFAULT = [
   {id:"admin1", name:"斎藤 志穂子", role:"admin", email:"admin@care.jp", password:"admin123", phone:"090-5555-6666", assignedClientIds:[1,2], shiftRequests:[], confirmedShifts:[]},
   {id:"staff1", name:"佐藤 美咲",     role:"staff",  email:"misaki@care.jp",  password:"staff123", phone:"090-1111-2222", assignedClientIds:[1], shiftRequests:[], confirmedShifts:[]},
   {id:"staff2", name:"鈴木 健太",     role:"staff",  email:"kenta@care.jp",   password:"staff456", phone:"090-3333-4444", assignedClientIds:[2], shiftRequests:[], confirmedShifts:[]},
   {id:"fam1",   name:"山田 太郎",     role:"family", email:"yamada@care.jp",  password:"fam123",   phone:"", assignedClientIds:[], clientId:1, shiftRequests:[], confirmedShifts:[]},
 ];
 
-const INIT_CLIENTS = [
+const INIT_CLIENTS_DEFAULT = [
   {id:1, name:"山田 花子", age:82, address:"東京都渋谷区〇〇1-2-3", diagnosis:"認知症（アルツハイマー型）、高血圧", emergency:"山田 太郎（長男） 090-1234-5678", life:"昭和17年生まれ。元教師。音楽が好きで、特に昭和歌謡を愛した。料理が得意で、近所に料理を振る舞うのが喜びだった。几帳面な性格。", notes:"大きな声を嫌がる。名前で呼ばれると安心する。", paymentMethod:"monthly_bank", records:[], schedules:[]},
   {id:2, name:"田中 一郎", age:75, address:"東京都新宿区△△3-4-5", diagnosis:"パーキンソン病、糖尿病", emergency:"田中 恵子（妻） 090-9876-5432", life:"昭和24年生まれ。元大工。手先が器用で木工細工が趣味。地域の祭りを取り仕切っていた。プライドが高く人に頼ることが苦手。", notes:"「ありがとう」より「助かった」と言うタイプ。", paymentMethod:"day_cash", records:[], schedules:[]},
 ];
@@ -814,6 +879,7 @@ function ShiftRequestView({currentUser,staffList,setStaffList}){
   const saveReq=(ds,type,timeSlot,startTime,endTime)=>{
     const updated=[...myReqs.filter(r=>r.date!==ds),{date:ds,type,timeSlot,startTime,endTime}];
     setStaffList(prev=>prev.map(s=>s.id===currentUser.id?{...s,shiftRequests:updated}:s));
+    saveDoc('staff', currentUser.id, { shiftRequests: updated });
   };
   const removeReq=ds=>{
     setStaffList(prev=>prev.map(s=>s.id===currentUser.id?{...s,shiftRequests:myReqs.filter(r=>r.date!==ds)}:s));
@@ -1130,9 +1196,32 @@ function App(){
     window.addEventListener("resize",handler);
     return()=>window.removeEventListener("resize",handler);
   },[]);
-  const [clients,setClients]=useState(INIT_CLIENTS);
-  const [staffList,setStaffList]=useState(INIT_STAFF);
+  const [clients,setClients]=useState([]);
+  const [clientsLoaded,setClientsLoaded]=useState(false);
+  const { data: fbClients, loading: clientsLoading } = useFirestore('clients');
+  useEffect(()=>{
+    if(!clientsLoading){
+      if(fbClients.length>0){ setClients(fbClients); }
+      else if(!clientsLoaded){
+        // 初回のみサンプルデータを投入
+        INIT_CLIENTS_DEFAULT.forEach(c=>{ db.collection('clients').doc(String(c.id)).set(c); });
+        setClientsLoaded(true);
+      }
+    }
+  },[fbClients,clientsLoading]);
+  const [staffList,setStaffList]=useState([]);
+  const { data: fbStaff, loading: staffLoading } = useFirestore('staff');
+  useEffect(()=>{
+    if(!staffLoading){
+      if(fbStaff.length>0){ setStaffList(fbStaff); }
+      else {
+        INIT_STAFF_DEFAULT.filter(s=>s.role!=='family').forEach(s=>{ db.collection('staff').doc(s.id).set(s); });
+      }
+    }
+  },[fbStaff,staffLoading]);
   const [allSchedules,setAllSchedules]=useState([]);
+  const { data: fbSchedules, loading: schedulesLoading } = useFirestore('schedules');
+  useEffect(()=>{ if(!schedulesLoading && fbSchedules.length>0) setAllSchedules(fbSchedules); },[fbSchedules,schedulesLoading]);
   const [selectedId,setSelectedId]=useState(null);
   const [clientTab,setClientTab]=useState("record");
   const [topTab,setTopTab]=useState("clients");
@@ -1162,30 +1251,46 @@ function App(){
         return (me?.assignedClientIds||[]).includes(c.id);
       });
 
-  const handleSaveRecord=record=>setClients(prev=>prev.map(c=>c.id===selectedId?{...c,records:[...c.records,record]}:c));
-  const handleUpdateClient=updated=>setClients(prev=>prev.map(c=>c.id===updated.id?updated:c));
+  const handleSaveRecord=async record=>{
+    const updated = clients.map(c=>c.id===selectedId?{...c,records:[...(c.records||[]),record]}:c);
+    setClients(updated);
+    const client = updated.find(c=>c.id===selectedId);
+    if(client) await saveDoc('clients', selectedId, { records: client.records });
+  };
+  const handleUpdateClient=async updated=>{
+    setClients(prev=>prev.map(c=>c.id===updated.id?updated:c));
+    await saveDoc('clients', updated.id, updated);
+  };
 
-  const handleSaveSchedule=schedule=>{
+  const handleSaveSchedule=async schedule=>{
     setAllSchedules(prev=>[...prev,schedule]);
-    setClients(prev=>prev.map(c=>c.id===schedule.clientId?{...c,schedules:[...(c.schedules||[]),schedule]}:c));
+    const updated = clients.map(c=>c.id===schedule.clientId?{...c,schedules:[...(c.schedules||[]),schedule]}:c);
+    setClients(updated);
+    const client = updated.find(c=>c.id===schedule.clientId);
+    if(client) await saveDoc('clients', schedule.clientId, { schedules: client.schedules });
+    await addDoc('schedules', schedule);
     setShowSchedModal(false);
   };
 
-  const handleConfirmSchedule=(scheduleId, staffName)=>{
+  const handleConfirmSchedule=async(scheduleId, staffName)=>{
     setAllSchedules(prev=>prev.map(s=>s.id===scheduleId?{...s,confirmed:true}:s));
-    // スタッフの確定シフトにも追加
     const sched=allSchedules.find(s=>s.id===scheduleId);
     if(sched&&staffName){
       const staffMember=staffList.find(s=>s.name===staffName);
       if(staffMember){
-        setStaffList(prev=>prev.map(s=>s.id===staffMember.id?{...s,confirmedShifts:[...(s.confirmedShifts||[]),{...sched,confirmed:true}]}:s));
+        const updatedShifts=[...(staffMember.confirmedShifts||[]),{...sched,confirmed:true}];
+        setStaffList(prev=>prev.map(s=>s.id===staffMember.id?{...s,confirmedShifts:updatedShifts}:s));
+        await saveDoc('staff', staffMember.id, { confirmedShifts: updatedShifts });
       }
     }
   };
 
-  const handleAddClient=()=>{
+  const handleAddClient=async()=>{
     if(!newClient.name){alert("氏名は必須です");return;}
-    setClients(prev=>[...prev,{...newClient,id:Date.now(),age:Number(newClient.age),records:[],schedules:[]}]);
+    const newId=Date.now();
+    const client={...newClient,id:newId,age:Number(newClient.age),records:[],schedules:[]};
+    setClients(prev=>[...prev,client]);
+    await saveDoc('clients', newId, client);
     setNewClient({name:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:""});
     setShowAddClient(false);
   };
@@ -1331,6 +1436,7 @@ function App(){
     </div>
   );
 }
+
 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
