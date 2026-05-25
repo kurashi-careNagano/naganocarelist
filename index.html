@@ -155,7 +155,7 @@ const PAYMENT_OPTIONS = [
 const paymentLabel = (key)=>PAYMENT_OPTIONS.find(p=>p.key===key)?.label||key||"未設定";
 
 // ========== DEMO DATA ==========
-const INIT_STAFF_DEFAULT = [
+const INIT_STAFF = [
   {id:"admin1", name:"斎藤 志穂子", role:"admin", email:"admin@care.jp", password:"admin123", phone:"090-5555-6666", assignedClientIds:[1,2], shiftRequests:[], confirmedShifts:[]},
   {id:"staff1", name:"佐藤 美咲",     role:"staff",  email:"misaki@care.jp",  password:"staff123", phone:"090-1111-2222", assignedClientIds:[1], shiftRequests:[], confirmedShifts:[]},
   {id:"staff2", name:"鈴木 健太",     role:"staff",  email:"kenta@care.jp",   password:"staff456", phone:"090-3333-4444", assignedClientIds:[2], shiftRequests:[], confirmedShifts:[]},
