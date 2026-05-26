@@ -93,7 +93,7 @@ function calcFee({services, serviceMins={}, entryTime, exitTime, carKm, otherIte
     breakdown.push({label:`${lbl}（${m}分）`,amount:fee}); total+=fee;
   }
 
-  // アロマケア → 宅内料金に加算（15分ごと+1,000円）
+  // アロマケア → 宅内料金に加算（15分ごと+1,200円）
   if(hasA){
     const m=parseInt(serviceMins.aroma)||0;
     if(m>0){
@@ -161,7 +161,7 @@ function LoginScreen({onLogin}){
           <button style={{...S.btn("primary"),width:"100%",padding:"10px"}} onClick={handle}>ログイン</button>
         </div>
         <div style={{...S.card,background:COLORS.cream}}>
-          <div style={{fontSize:11,color:COLORS.muted,marginBottom:6,fontWeight:600}}>デモ用アカウント</div>
+          <div style={{fontSize:11,color:COLORS.muted,marginBottom:6,fontWeight:600}}>デモ用アカウント
           {INIT_STAFF.map(a=>(
             <div key={a.id} style={{fontSize:11,color:COLORS.muted,marginBottom:3}}>
               <span style={{...S.badge(roleColor[a.role]),marginRight:5}}>{roleLabel[a.role]}</span>
