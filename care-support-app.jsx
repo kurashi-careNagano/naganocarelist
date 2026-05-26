@@ -68,7 +68,7 @@ const INIT_STAFF = [
 ];
 
 const INIT_CLIENTS = [
-  {id:1, name:"山田 花子", age:82, address:"東京都渋谷区〇〇1-2-3", diagnosis:"認知症（アルツハイマー型）、高血圧", emergency:"山田 太郎（長男） 090-1234-5678", life:"昭和17年生まれ。元教師。音楽が好きで、特に昭和歌謡を愛した。料理が得意で、近所に料理を振る舞うのが喜びだった。几帳面な性格。", notes:"大きな声を嫌がる。名前で呼ばれると安心する。", paymentMethod:"monthly_bank", records:[], schedules:[]},
+  {id:1, name:"小宮山 かづ子", age:82, address:"長野県長野市篠ノ井岡田3241", diagnosis:"認知症（アルツハイマー型）、ペースメーカー", emergency:"小宮山 よしゆき（長男） 080-2091-9986", life:"昭和10年3月15日生まれ。司馬宮前マツキヨの地で呉服屋、それが実家。時代と共に経営難しくなり廃業。着物のまるためで勤務。息子3人", notes:"認知症は軽度。ペースメーカー有。", paymentMethod:"monthly_bank", records:[], schedules:[]},
   {id:2, name:"田中 一郎", age:75, address:"東京都新宿区△△3-4-5", diagnosis:"パーキンソン病、糖尿病", emergency:"田中 恵子（妻） 090-9876-5432", life:"昭和24年生まれ。元大工。手先が器用で木工細工が趣味。地域の祭りを取り仕切っていた。プライドが高く人に頼ることが苦手。", notes:"「ありがとう」より「助かった」と言うタイプ。", paymentMethod:"day_cash", records:[], schedules:[]},
 ];
 
