@@ -91,7 +91,7 @@ async function updateDoc(collection, id, data) {
   } catch(e) { console.error('Update error:', e); }
 }
 
-
+const { useState, useEffect } = React;
 
 
 
@@ -237,16 +237,33 @@ function LoginScreen({onLogin, staffList}){
   const [email,setEmail]=useState(""), [password,setPassword]=useState(""), [err,setErr]=useState("");
   const [regName,setRegName]=useState(""), [regEmail,setRegEmail]=useState(""), [regPass,setRegPass]=useState(""), [regPass2,setRegPass2]=useState(""), [regDone,setRegDone]=useState(false), [regErr,setRegErr]=useState("");
 
-  const handle=()=>{
-    // まずFirebaseのstaffコレクションから認証
-    const acc=(staffList||[]).find(a=>a.email===email&&a.password===password&&a.status!=="pending");
-    if(acc){setErr("");onLogin(acc);}
-    else {
-      // フォールバック：初期デモアカウント
-      const demo=INIT_STAFF.find(a=>a.email===email&&a.password===password);
-      if(demo){setErr("");onLogin(demo);}
-      else setErr("メールアドレスまたはパスワードが違います");
+  const [checking,setChecking]=useState(false);
+  const handle=async()=>{
+    setChecking(true);
+    setErr("");
+    try {
+      // Firebaseから直接照合（リアルタイム）
+      const snapshot = await db.collection("staff").where("email","==",email).get();
+      if(!snapshot.empty){
+        const doc=snapshot.docs[0];
+        const acc=doc.data();
+        if(acc.password===password){
+          if(acc.status==="pending"){
+            setErr("承認待ちです。管理者の承認をお待ちください。");
+          } else {
+            setErr(""); onLogin({...acc, _id:doc.id});
+          }
+        } else {
+          setErr("パスワードが違います");
+        }
+      } else {
+        setErr("このメールアドレスは登録されていません");
+      }
+    } catch(e) {
+      setErr("通信エラーが発生しました。もう一度お試しください。");
+      console.error(e);
     }
+    setChecking(false);
   };
 
   const handleRegister=async()=>{
@@ -312,7 +329,7 @@ function LoginScreen({onLogin, staffList}){
           <div style={{marginBottom:10}}><label style={S.label}>メールアドレス</label><input style={S.input} type="email" placeholder="example@care.jp" value={email} onChange={e=>setEmail(e.target.value)}/></div>
           <div style={{marginBottom:14}}><label style={S.label}>パスワード</label><input style={S.input} type="password" placeholder="パスワード" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/></div>
           {err&&<div style={{fontSize:11,color:COLORS.red,marginBottom:9}}>{err}</div>}
-          <button style={{...S.btn("primary"),width:"100%",padding:"10px",marginBottom:10}} onClick={handle}>ログイン</button>
+          <button style={{...S.btn("primary"),width:"100%",padding:"10px",marginBottom:10}} onClick={handle} disabled={checking}>{checking?"確認中...":"ログイン"}</button>
           <button style={{...S.btn("outline"),width:"100%"}} onClick={()=>setMode("register")}>新規スタッフ登録はこちら</button>
         </div>
       </div>
