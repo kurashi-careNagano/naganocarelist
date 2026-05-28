@@ -195,7 +195,7 @@ function calcFee({services, serviceMins={}, entryTime, exitTime, carKm, otherIte
   if(hasA){
     const m=parseInt(serviceMins.aroma)||0;
     if(m>0){
-      const aromaFee=Math.ceil(m/15)*1000;
+      const aromaFee=Math.ceil(m/15)*1400;
       breakdown.push({label:`🌸 アロマケア（${m}分）`,amount:aromaFee}); total+=aromaFee;
     } else {
       breakdown.push({label:"🌸 アロマケア（分数未入力）",amount:0});
@@ -217,14 +217,7 @@ function calcFee({services, serviceMins={}, entryTime, exitTime, carKm, otherIte
     const km=parseFloat(carKm)||0;
     if(km>0){const cf=Math.round(km*30);breakdown.push({label:`車同乗 ${km}km×30円`,amount:cf});total+=cf;}
   }
-// ケアリストプラン
-if(serviceMins.cl_plan==="single"){
-  total += 15000;
-}
 
-if(serviceMins.cl_plan==="monthly"){
-  total += 44000;
-}
   // その他（複数行）
   (otherItems||[]).forEach((item,i)=>{
     const amt=parseInt(item.fee)||0;
