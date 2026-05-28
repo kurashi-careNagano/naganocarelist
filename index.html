@@ -171,24 +171,46 @@ const canConfirmSchedule = (role)=>ROLE_CONFIG[role]?.canConfirmSchedule||false;
 const INIT_CLIENTS = [];
 
 // ========== UTILS ==========
-function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, distanceKm, otherItems=[], clientDistanceKm}){
+// 15分刻み切り上げ（5分超えたら次の15分へ）
+function round15(min){
+  if(min<=0) return 0;
+  const rem=min%15;
+  if(rem===0) return min;
+  if(rem<=5) return min-rem; // 5分以内は切り捨て
+  return min+(15-rem);       // 5分超えたら切り上げ
+}
+
+function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, otherItems=[], clientDistanceKm}){
   if(!entryTime||!exitTime) return null;
   const [eh,em]=entryTime.split(":").map(Number), [xh,xm]=exitTime.split(":").map(Number);
   const totalMin=(xh*60+xm)-(eh*60+em);
   if(totalMin<=0) return null;
+  const totalMin15=round15(totalMin); // 入退室時間を15分刻みに
   let breakdown=[],total=0;
 
   const hasI=services.includes("indoor"),hasE=services.includes("errands"),hasA=services.includes("aroma");
   const hasNC=services.includes("outdoor_nocar"),hasC=services.includes("outdoor_car");
   const hasCL=services.includes("cl_plan");
 
-  // 4サービスの合計時間を自動計算（入退室時間と一致させる）
-  const indoorMins=(hasI?(parseInt(serviceMins.indoor)||0):0)+(hasE?(parseInt(serviceMins.errands)||0):0);
-  const outdoorNocarMins=hasNC?(parseInt(serviceMins.outdoor_nocar)||0):0;
-  const outdoorCarMins=hasC?(parseInt(serviceMins.outdoor_car)||0):0;
-  const sumMins=indoorMins+outdoorNocarMins+outdoorCarMins;
-  // 合計分数が未入力なら入退室時間を使う
-  const useTotal=sumMins===0;
+  // 4サービスの入力済み分数
+  const indoorMinsRaw=(hasI?(parseInt(serviceMins.indoor)||0):0)+(hasE?(parseInt(serviceMins.errands)||0):0);
+  const outdoorNocarMinsRaw=hasNC?(parseInt(serviceMins.outdoor_nocar)||0):0;
+  const outdoorCarMinsRaw=hasC?(parseInt(serviceMins.outdoor_car)||0):0;
+
+  // 対象サービス数
+  const targetServices=[hasI||hasE, hasNC, hasC].filter(Boolean).length;
+  const inputtedMins=indoorMinsRaw+outdoorNocarMinsRaw+outdoorCarMinsRaw;
+
+  // 片方だけ入力されたとき、残りを自動計算
+  const autoCalc=(inputted, others)=>{
+    if(inputted>0) return round15(inputted);
+    if(targetServices>1 && others>0) return Math.max(0, round15(totalMin15-others));
+    return totalMin15; // 全部未入力なら入退室時間
+  };
+
+  const indoorMins15=autoCalc(indoorMinsRaw, outdoorNocarMinsRaw+outdoorCarMinsRaw);
+  const outdoorNocarMins15=autoCalc(outdoorNocarMinsRaw, indoorMinsRaw+outdoorCarMinsRaw);
+  const outdoorCarMins15=autoCalc(outdoorCarMinsRaw, indoorMinsRaw+outdoorNocarMinsRaw);
 
   // ケアリストプラン
   if(hasCL){
@@ -197,48 +219,44 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, dista
     breakdown.push({label:`✨ ケアリストプラン（${clType==="monthly"?"月4回定期":"1回"}）`,amount:fee}); total+=fee;
   }
 
-  // 宅内・買物代行（15分刻み）
+  // 宅内・買物代行
   if(hasI||hasE){
-    const m=useTotal?totalMin:indoorMins;
-    // 15分刻みで切り上げ
-    const m15=Math.ceil(m/15)*15;
+    const m=indoorMins15;
     let fee=0;
-    if(m15<=30) fee=1600;
-    else if(m15<=60) fee=2800;
-    else fee=2800+Math.ceil((m15-60)/15)*700;
+    if(m<=30) fee=1600;
+    else if(m<=60) fee=2800;
+    else fee=2800+Math.ceil((m-60)/15)*700;
     const lbl=[hasI&&"宅内敷地内",hasE&&"買物等代行"].filter(Boolean).join("・");
     breakdown.push({label:`${lbl}（${m}分）`,amount:fee}); total+=fee;
   }
 
   // アロマケア（15分1,400円）
   if(hasA){
-    const m=parseInt(serviceMins.aroma)||0;
+    const mRaw=parseInt(serviceMins.aroma)||0;
+    const m=round15(mRaw);
     if(m>0){
-      const m15=Math.ceil(m/15)*15;
-      const aromaFee=Math.ceil(m15/15)*1400;
+      const aromaFee=Math.ceil(m/15)*1400;
       breakdown.push({label:`🌸 アロマケア（${m}分）`,amount:aromaFee}); total+=aromaFee;
     } else {
       breakdown.push({label:"🌸 アロマケア（分数未入力）",amount:0});
     }
   }
 
-  // 外出支援・車なし（15分刻み）
+  // 外出支援・車なし
   if(hasNC){
-    const m=useTotal?totalMin:outdoorNocarMins;
-    const m15=Math.ceil(m/15)*15;
-    const fee=m15<=60?3000:3000+Math.ceil((m15-60)/15)*750;
+    const m=outdoorNocarMins15;
+    const fee=m<=60?3000:3000+Math.ceil((m-60)/15)*750;
     breakdown.push({label:`外出支援・車なし（${m}分）`,amount:fee}); total+=fee;
   }
 
-  // 外出支援・車あり（15分刻み）
+  // 外出支援・車あり
   if(hasC){
-    const m=useTotal?totalMin:outdoorCarMins;
-    const m15=Math.ceil(m/15)*15;
-    const fee=m15<=60?3000:3000+Math.ceil((m15-60)/15)*750;
+    const m=outdoorCarMins15;
+    const fee=m<=60?3000:3000+Math.ceil((m-60)/15)*750;
     breakdown.push({label:`外出支援・車あり（${m}分）`,amount:fee}); total+=fee;
     const km=parseFloat(carKm)||0;
     if(km>0){const cf=Math.round(km*30);breakdown.push({label:`車同乗 ${km}km×30円`,amount:cf});total+=cf;}
-    // 遠距離加算（利用者設定値を使用）
+    // 遠距離加算
     const dkm=parseFloat(clientDistanceKm)||0;
     if(dkm>=15&&dkm<20){
       breakdown.push({label:`🚗 遠距離加算（${dkm}km）`,amount:1000}); total+=1000;
@@ -248,7 +266,7 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, dista
     }
   }
 
-  // その他（複数行）
+  // その他
   (otherItems||[]).forEach((item,i)=>{
     const amt=parseInt(item.fee)||0;
     if(amt>0||item.note){
@@ -256,7 +274,7 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, dista
     }
   });
 
-  return {breakdown,total,totalMin,sumMins};
+  return {breakdown,total,totalMin,totalMin15};
 }
 const getDays=(y,m)=>new Date(y,m+1,0).getDate();
 const getFirst=(y,m)=>new Date(y,m,1).getDay();
