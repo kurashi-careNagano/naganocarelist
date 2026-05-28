@@ -191,7 +191,7 @@ function calcFee({services, serviceMins={}, entryTime, exitTime, carKm, otherIte
     breakdown.push({label:`${lbl}（${m}分）`,amount:fee}); total+=fee;
   }
 
-  // アロマケア → 宅内料金に加算（15分ごと+1,000円）
+  // アロマケア → 宅内料金に加算（15分ごと+1,400円）
   if(hasA){
     const m=parseInt(serviceMins.aroma)||0;
     if(m>0){
@@ -217,7 +217,14 @@ function calcFee({services, serviceMins={}, entryTime, exitTime, carKm, otherIte
     const km=parseFloat(carKm)||0;
     if(km>0){const cf=Math.round(km*30);breakdown.push({label:`車同乗 ${km}km×30円`,amount:cf});total+=cf;}
   }
+// ケアリストプラン
+if(serviceMins.cl_plan==="single"){
+  total += 15000;
+}
 
+if(serviceMins.cl_plan==="monthly"){
+  total += 44000;
+}
   // その他（複数行）
   (otherItems||[]).forEach((item,i)=>{
     const amt=parseInt(item.fee)||0;
@@ -501,7 +508,7 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
               <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"7px 10px",borderRadius:checked&&needsMins?"8px 8px 0 0":8,background:checked?"#EBF4EE":COLORS.warmWhite,border:`1px solid ${checked?COLORS.sageDark:COLORS.border}`}}>
                 <input type="checkbox" checked={checked} onChange={()=>toggleSvc(key)} style={{width:15,height:15,accentColor:COLORS.sageDark}}/>
                 <span style={{fontSize:12,fontWeight:checked?600:400,color:checked?COLORS.sageDark:COLORS.charcoal,flex:1}}>{label}</span>
-                {key==="aroma"&&checked&&<span style={{fontSize:10,color:COLORS.accent}}>15分ごと+1,000円</span>}
+                {key==="aroma"&&checked&&<span style={{fontSize:10,color:COLORS.accent}}>15分ごと+1,400円</span>}
               </label>
               {checked&&needsMins&&(
                 <div style={{padding:"8px 10px",background:"#D8EDE0",borderRadius:"0 0 8px 8px",border:`1px solid ${COLORS.sageDark}`,borderTop:"none",display:"flex",alignItems:"center",gap:8}}>
@@ -515,7 +522,7 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
                   <span style={{fontSize:11,color:COLORS.muted}}>分</span>
                   {key==="aroma"&&form.serviceMins[key]&&(
                     <span style={{fontSize:11,color:COLORS.accent,fontWeight:600}}>
-                      +{(Math.ceil(parseInt(form.serviceMins[key])/15)*1000).toLocaleString()}円
+                      +{(Math.ceil(parseInt(form.serviceMins[key])/15)*1400).toLocaleString()}円
                     </span>
                   )}
                 </div>
