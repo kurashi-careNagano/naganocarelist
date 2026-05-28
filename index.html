@@ -1498,6 +1498,7 @@ function App(){
   const [showSchedModal,setShowSchedModal]=useState(false);
   const [schedDefaultDate,setSchedDefaultDate]=useState(null);
   const [newClient,setNewClient]=useState({name:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:"",distanceKm:""});
+  const [editingSchedule,setEditingSchedule]=useState(null);
 
   if(!currentUser) return <LoginScreen onLogin={setCurrentUser} staffList={staffList}/>;
   if(currentUser.role==="family") return(
@@ -1519,8 +1520,6 @@ function App(){
         const me=staffList.find(s=>s.id===currentUser.id);
         return (me?.assignedClientIds||[]).includes(c.id);
       });
-
-  const [editingSchedule,setEditingSchedule]=useState(null);
 
   const handleEditSchedule=(schedule)=>{
     setEditingSchedule(schedule);
