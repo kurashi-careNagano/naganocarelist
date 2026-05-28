@@ -471,6 +471,7 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
   const hasCar=form.services.includes("outdoor_car");
   const hasOther=form.services.includes("other");
   const hasAroma=form.services.includes("aroma");
+  const hasCLPlan=form.services.includes("cl_plan");
 
   // 分数入力が必要な支援内容
   const minuteKeys=["indoor","errands","outdoor_nocar","outdoor_car","aroma"];
