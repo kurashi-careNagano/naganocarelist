@@ -467,7 +467,7 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
   const addOtherItem=()=>setForm(f=>({...f,otherItems:[...f.otherItems,{note:"",fee:""}]}));
   const removeOtherItem=i=>setForm(f=>({...f,otherItems:f.otherItems.filter((_,idx)=>idx!==i)}));
 
-  const fee=calcFee({...form,distanceKm:form.distanceKm});
+  const fee=calcFee({...form,distanceKm:client?.distanceKm||""});
   const hasCar=form.services.includes("outdoor_car");
   const hasOther=form.services.includes("other");
   const hasAroma=form.services.includes("aroma");
@@ -547,16 +547,13 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
               <label style={{...S.label,color:COLORS.blue}}>🚗 車同乗距離（km）</label>
               <input style={S.input} type="number" placeholder="例）5.2" value={form.carKm} onChange={e=>set("carKm",e.target.value)}/>
               {form.carKm&&<div style={{fontSize:11,color:COLORS.blue,marginTop:3}}>車代：{Math.round(parseFloat(form.carKm)*30).toLocaleString()}円</div>}
+          {client?.distanceKm&&parseFloat(client.distanceKm)>=15&&(
+            <div style={{fontSize:11,color:COLORS.accent,marginTop:3}}>
+              🚗 遠距離加算（{client.distanceKm}km）が自動加算されます
             </div>
-            <div style={S.col}>
-              <label style={{...S.label,color:COLORS.blue}}>🚗 送迎総距離（km）</label>
-              <input style={S.input} type="number" placeholder="例）18" value={form.distanceKm} onChange={e=>set("distanceKm",e.target.value)}/>
-              {form.distanceKm&&parseFloat(form.distanceKm)>=15&&(
-                <div style={{fontSize:11,color:COLORS.accent,marginTop:3}}>
-                  遠距離加算あり（{parseFloat(form.distanceKm)>=20?`+${Math.ceil((parseFloat(form.distanceKm)-15)/10)*1000}円`:"+1,000円"}）
-                </div>
-              )}
+          )}
             </div>
+
           </div>
         </div>
       )}
@@ -749,6 +746,18 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
           <div style={{marginBottom:8}}><label style={S.label}>既往歴・診断名</label><input style={S.input} value={form.diagnosis} onChange={e=>set("diagnosis",e.target.value)}/></div>
           <div style={{marginBottom:8}}><label style={S.label}>緊急連絡先</label><input style={S.input} value={form.emergency} onChange={e=>set("emergency",e.target.value)}/></div>
           <div style={{marginBottom:8}}>
+            <label style={S.label}>🚗 送迎遠距離加算（片道km）</label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input style={{...S.input,width:100}} type="number" placeholder="例）18" value={form.distanceKm||""} onChange={e=>set("distanceKm",e.target.value)}/>
+              <span style={{fontSize:11,color:COLORS.muted}}>km</span>
+            </div>
+            {form.distanceKm&&parseFloat(form.distanceKm)>=15&&(
+              <div style={{fontSize:11,color:COLORS.accent,marginTop:4}}>
+                自動加算：{parseFloat(form.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(form.distanceKm)-15)/10)*1000}円`}
+              </div>
+            )}
+          </div>
+          <div style={{marginBottom:8}}>
             <label style={S.label}>お支払い方法</label>
             {currentUser?.role==="admin"
               ? <PaymentSelector value={form.paymentMethod} onChange={v=>set("paymentMethod",v)} name="assess_pay"/>
@@ -790,13 +799,21 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
         <div style={{marginBottom:6}}><label style={S.label}>住所</label><div style={{fontSize:isPC?14:13}}>{client.address}</div></div>
         <div style={{marginBottom:6}}><label style={S.label}>既往歴・診断名</label><div style={{fontSize:isPC?14:13}}>{client.diagnosis}</div></div>
         <div style={{marginBottom:6}}><label style={S.label}>緊急連絡先</label><div style={{fontSize:isPC?14:13}}>{client.emergency}</div></div>
-        <div>
+        <div style={{marginBottom:6}}>
           <label style={S.label}>お支払い方法（登録済み）</label>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:isPC?14:13,color:COLORS.sageDark,fontWeight:600}}>{paymentLabel(client.paymentMethod)||"未設定"}</div>
             {currentUser?.role==="admin"&&(
               <button onClick={()=>setEditing(true)} style={{fontSize:10,color:COLORS.blue,background:"none",border:`1px solid ${COLORS.blue}`,borderRadius:10,padding:"2px 8px",cursor:"pointer"}}>変更</button>
             )}
+          </div>
+        </div>
+        <div>
+          <label style={S.label}>🚗 送迎遠距離加算</label>
+          <div style={{fontSize:isPC?14:13,color:client.distanceKm&&parseFloat(client.distanceKm)>=15?COLORS.accent:COLORS.muted}}>
+            {client.distanceKm&&parseFloat(client.distanceKm)>0
+              ?`${client.distanceKm}km（${parseFloat(client.distanceKm)<15?"加算なし":parseFloat(client.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(client.distanceKm)-15)/10)*1000}円`}）`
+              :"未設定（加算なし）"}
           </div>
         </div>
       </div>
@@ -1410,7 +1427,7 @@ function App(){
   const [showAddClient,setShowAddClient]=useState(false);
   const [showSchedModal,setShowSchedModal]=useState(false);
   const [schedDefaultDate,setSchedDefaultDate]=useState(null);
-  const [newClient,setNewClient]=useState({name:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:""});
+  const [newClient,setNewClient]=useState({name:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:"",distanceKm:""});
 
   if(!currentUser) return <LoginScreen onLogin={setCurrentUser} staffList={staffList}/>;
   if(currentUser.role==="family") return(
@@ -1578,6 +1595,18 @@ function App(){
               <div style={{marginBottom:8}}>
                 <label style={S.label}>💳 支払い方法</label>
                 <PaymentSelector value={newClient.paymentMethod} onChange={v=>setNC("paymentMethod",v)} name="nc_pay"/>
+              </div>
+              <div style={{marginBottom:8}}>
+                <label style={S.label}>🚗 送迎遠距離加算（片道km）</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <input style={{...S.input,width:100}} type="number" placeholder="例）18" value={newClient.distanceKm} onChange={e=>setNC("distanceKm",e.target.value)}/>
+                  <span style={{fontSize:11,color:COLORS.muted}}>km　（15km未満は加算なし）</span>
+                </div>
+                {newClient.distanceKm&&parseFloat(newClient.distanceKm)>=15&&(
+                  <div style={{fontSize:11,color:COLORS.accent,marginTop:4}}>
+                    {parseFloat(newClient.distanceKm)<20?"遠距離加算：+1,000円":`遠距離加算：+${Math.ceil((parseFloat(newClient.distanceKm)-15)/10)*1000}円`}が自動加算されます
+                  </div>
+                )}
               </div>
               <div style={{marginBottom:8}}><label style={S.label}>🌿 生きてきた過程・人となり</label><textarea style={S.textarea} placeholder="生まれや育ち、仕事、趣味、大切にしてきたこと、性格など..." value={newClient.life} onChange={e=>setNC("life",e.target.value)}/></div>
               <div style={{marginBottom:12}}><label style={S.label}>関わる際のポイント・注意点</label><textarea style={{...S.textarea,minHeight:52}} placeholder="接し方のコツ、好きなこと、避けたほうがよいことなど..." value={newClient.notes} onChange={e=>setNC("notes",e.target.value)}/></div>
