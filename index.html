@@ -723,7 +723,7 @@ function PhotoGrid({photos,compact}){
 }
 
 // ========== RECORD LIST ==========
-function RecordList({records, currentUser, client, onUpdateRecord}){
+function RecordList({records, currentUser, client, onUpdateRecord, onDeleteRecord}){
   if(records.length===0) return <div style={{...S.card,color:COLORS.muted,textAlign:"center",fontSize:13,padding:24}}>まだ記録がありません</div>;
   const condColor={"良好":"#7A9E87","普通":"#B0A875","やや不調":"#C4885A","不調":"#C0504A","要注意":"#8B2FC9"};
   const [editingId,setEditingId]=useState(null);
@@ -797,7 +797,10 @@ function RecordList({records, currentUser, client, onUpdateRecord}){
                 <PhotoGrid photos={r.photos} compact={true}/>
               </div>
               {canEdit(r)&&(
-                <button onClick={()=>startEdit(r)} style={{...S.btn("outline"),fontSize:10,padding:"4px 10px",marginLeft:8,whiteSpace:"nowrap"}}>✏️ 編集</button>
+                <div style={{display:"flex",flexDirection:"column",gap:4,marginLeft:8}}>
+                  <button onClick={()=>startEdit(r)} style={{...S.btn("outline"),fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}>✏️ 編集</button>
+                  <button onClick={()=>onDeleteRecord&&onDeleteRecord(r.id)} style={{...S.btn("danger"),fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}>🗑 削除</button>
+                </div>
               )}
             </div>
           </div>
@@ -1180,7 +1183,12 @@ function ClientScheduleView({client,allSchedules,currentUser,onAddSchedule,onCon
         <div style={S.card}>
           <div style={{...S.title,color:COLORS.muted}}>🕐 過去の予定</div>
           {past.slice(0,5).map(s=>(
-            <div key={s.id} style={{...S.listItem,opacity:0.6,fontSize:11}}>{s.date.slice(5).replace("-","/")} {s.startTime}{s.endTime?`〜${s.endTime}`:""} {serviceLabel(s.services)}</div>
+            <div key={s.id} style={{...S.listItem,display:"flex",justifyContent:"space-between",alignItems:"center",opacity:0.7}}>
+              <div style={{fontSize:11}}>{s.date.slice(5).replace("-","/")} {s.startTime}{s.endTime?`〜${s.endTime}`:""} {serviceLabel(s.services)}</div>
+              {(currentUser?.role==="admin"||currentUser?.role==="sv")&&(
+                <button onClick={()=>onDeleteSchedule&&onDeleteSchedule(s.id)} style={{...S.btn("danger"),fontSize:9,padding:"3px 7px",whiteSpace:"nowrap"}}>削除</button>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -1742,7 +1750,10 @@ function App(){
                 {clientTab==="record"&&<RecordForm client={selected} currentUser={currentUser} staffList={staffList} onSave={handleSaveRecord}/>}
                 {clientTab==="timer"&&<Timer clientName={selected.name}/>}
                 {clientTab==="schedule"&&<ClientScheduleView client={selected} allSchedules={allSchedules} currentUser={currentUser} onAddSchedule={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}} onConfirmSchedule={(id)=>handleConfirmSchedule(id, allSchedules.find(s=>s.id===id)?.staff)} onEditSchedule={handleEditSchedule} onDeleteSchedule={handleDeleteSchedule}/>}
-                {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected} onUpdateRecord={async updated=>{ const newRecords=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:newRecords}:c)); await saveDoc("clients",selected.id,{records:newRecords}); }}/>}
+                {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected}
+                  onUpdateRecord={async updated=>{ const nr=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
+                  onDeleteRecord={async id=>{ if(!window.confirm("この記録を削除しますか？")) return; const nr=selected.records.filter(r=>r.id!==id); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
+                />}
                 {clientTab==="family"&&<FamilyPortal currentUser={{role:"family",clientId:selected.id}} clients={clients}/>}
               </div>
             </div>
@@ -1751,7 +1762,10 @@ function App(){
               {clientTab==="record"&&<RecordForm client={selected} currentUser={currentUser} staffList={staffList} onSave={handleSaveRecord}/>}
               {clientTab==="timer"&&<Timer clientName={selected.name}/>}
               {clientTab==="schedule"&&<ClientScheduleView client={selected} allSchedules={allSchedules} currentUser={currentUser} onAddSchedule={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}} onConfirmSchedule={(id)=>handleConfirmSchedule(id, allSchedules.find(s=>s.id===id)?.staff)} onEditSchedule={handleEditSchedule} onDeleteSchedule={handleDeleteSchedule}/>}
-              {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected} onUpdateRecord={async updated=>{ const newRecords=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:newRecords}:c)); await saveDoc("clients",selected.id,{records:newRecords}); }}/>}
+              {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected}
+                onUpdateRecord={async updated=>{ const nr=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
+                onDeleteRecord={async id=>{ if(!window.confirm("この記録を削除しますか？")) return; const nr=selected.records.filter(r=>r.id!==id); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
+              />}
               {clientTab==="assessment"&&<AssessmentView client={selected} onUpdate={handleUpdateClient} isPC={isPC} currentUser={currentUser}/>}
               {clientTab==="family"&&<FamilyPortal currentUser={{role:"family",clientId:selected.id}} clients={clients}/>}
             </>
