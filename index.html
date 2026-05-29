@@ -960,7 +960,7 @@ function expandRecurring(schedules, year, month){
   return result;
 }
 
-function CalendarView({allSchedules,onDayClick,staffList=[]}){
+function CalendarView({allSchedules,onDayClick,staffList=[],onEditSchedule,onDeleteSchedule,currentUser}){
   const today=new Date();
   const [vY,setVY]=useState(today.getFullYear()),[vM,setVM]=useState(today.getMonth()),[selDay,setSelDay]=useState(null);
   const [assignStaff,setAssignStaff]=useState({}); // {schedId_date: staffName}
@@ -1012,27 +1012,41 @@ function CalendarView({allSchedules,onDayClick,staffList=[]}){
               const currentStaff=assignStaff[key]||s.staff||"";
               return(
                 <div key={idx} style={{...S.listItem,background:s.isRecurringInstance?"#F0F7F3":"transparent",borderRadius:s.isRecurringInstance?6:0,padding:"10px 0"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4,flexWrap:"wrap"}}>
-                    <span style={{fontSize:12,fontWeight:700,color:COLORS.blue}}>{s.startTime}{s.endTime?`〜${s.endTime}`:""}</span>
-                    <span style={{fontSize:13,fontWeight:700}}>{s.clientName}</span>
-                    {s.isRecurringInstance&&<span style={S.badge(COLORS.blue)}>🔁 定期</span>}
-                    {!s.isRecurringInstance&&<span style={S.badge(s.confirmed?COLORS.green:COLORS.gold)}>{s.confirmed?"確定":"未確定"}</span>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4,flexWrap:"wrap"}}>
+                        <span style={{fontSize:12,fontWeight:700,color:COLORS.blue}}>{s.startTime}{s.endTime?`〜${s.endTime}`:""}</span>
+                        <span style={{fontSize:13,fontWeight:700}}>{s.clientName}</span>
+                        {s.isRecurringInstance&&<span style={S.badge(COLORS.blue)}>🔁 定期</span>}
+                        {!s.isRecurringInstance&&<span style={S.badge(s.confirmed?COLORS.green:COLORS.gold)}>{s.confirmed?"確定":"未確定"}</span>}
+                      </div>
+                      {s.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:4}}>{serviceLabel(s.services)}</div>}
+                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:s.note?4:0}}>
+                        <span style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>担当:</span>
+                        <select value={currentStaff} onChange={async e=>{
+                          const newStaff=e.target.value;
+                          setAssignStaff(prev=>({...prev,[key]:newStaff}));
+                          try{ await db.collection("schedules").doc(String(s.id)).update({staff:newStaff}); }catch(e){}
+                        }} style={{...S.input,fontSize:11,padding:"4px 8px",flex:1}}>
+                          <option value="">未設定</option>
+                          {staffList.filter(st=>st.role!=="family"&&st.status!=="pending").map(st=>(
+                            <option key={st.id} value={st.name}>{st.name}（{getRoleLabel(st.role)}）</option>
+                          ))}
+                        </select>
+                      </div>
+                      {s.note&&<div style={{fontSize:11,color:COLORS.muted}}>{s.note}</div>}
+                    </div>
+                    {/* 編集・削除ボタン（定期インスタンスは削除のみ） */}
+                    {!s.isRecurringInstance&&(
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        <button onClick={()=>onEditSchedule&&onEditSchedule(s)} style={{...S.btn("outline"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>✏️ 編集</button>
+                        <button onClick={()=>onDeleteSchedule&&onDeleteSchedule(s.id)} style={{...S.btn("danger"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>🗑 削除</button>
+                      </div>
+                    )}
+                    {s.isRecurringInstance&&(
+                      <button onClick={()=>{ if(window.confirm("定期設定ごと削除しますか？")) onDeleteSchedule&&onDeleteSchedule(s.id); }} style={{...S.btn("danger"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>🗑 削除</button>
+                    )}
                   </div>
-                  {s.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:4}}>{serviceLabel(s.services)}</div>}
-                  <div style={{display:"flex",alignItems:"center",gap:7}}>
-                    <span style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>担当:</span>
-                    <select value={currentStaff} onChange={async e=>{
-                      const newStaff=e.target.value;
-                      setAssignStaff(prev=>({...prev,[key]:newStaff}));
-                      try{ await db.collection("schedules").doc(String(s.id)).update({staff:newStaff}); }catch(e){}
-                    }} style={{...S.input,fontSize:11,padding:"4px 8px",flex:1}}>
-                      <option value="">未設定</option>
-                      {staffList.filter(st=>st.role!=="family"&&st.status!=="pending").map(st=>(
-                        <option key={st.id} value={st.name}>{st.name}（{getRoleLabel(st.role)}）</option>
-                      ))}
-                    </select>
-                  </div>
-                  {s.note&&<div style={{fontSize:11,color:COLORS.muted,marginTop:3}}>{s.note}</div>}
                 </div>
               );
             })
@@ -1379,7 +1393,7 @@ function StaffManagement({staffList,setStaffList,clients,allSchedules,onConfirmS
   return(
     <div style={S.main}>
       <div style={{display:"flex",gap:6,marginBottom:11,flexWrap:"wrap"}}>
-        {[["shifts","📅 シフト希望"],["confirm","✅ シフト確定"],["assign","🔗 担当設定"],["list","👤 スタッフ一覧"],["pending","🔔 承認待ち"]].map(([k,l])=>{
+        {[["shifts","📅 シフト希望"],["confirm","✅ シフト確定"],["assign","🔗 担当設定"],["list","👤 スタッフ一覧"],["pending","🔔 承認待ち"],["family","👨‍👩‍👧 家族アカウント"]].map(([k,l])=>{
           const isPending=k==="pending";
           const pendingCount=(staffList||[]).filter(s=>s.status==="pending").length;
           return(
@@ -1548,6 +1562,98 @@ function StaffManagement({staffList,setStaffList,clients,allSchedules,onConfirmS
           ))}
         </div>
       )}
+
+      {tab==="family"&&(
+        <FamilyAccountManager clients={clients} staffList={staffList} setStaffList={setStaffList}/>
+      )}
+    </div>
+  );
+}
+
+// ========== 家族アカウント管理 ==========
+function FamilyAccountManager({clients, staffList, setStaffList}){
+  const [showAdd,setShowAdd]=useState(false);
+  const [form,setForm]=useState({name:"",email:"",password:"",clientId:""});
+  const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const familyAccounts=(staffList||[]).filter(s=>s.role==="family");
+
+  const handleAdd=async()=>{
+    if(!form.name||!form.email||!form.password||!form.clientId){alert("すべての項目を入力してください");return;}
+    if(form.password.length<4){alert("パスワードは4文字以上にしてください");return;}
+    const exists=(staffList||[]).find(s=>s.email===form.email);
+    if(exists){alert("このメールアドレスはすでに登録されています");return;}
+    const newFam={
+      id:"family_"+Date.now(),
+      name:form.name, email:form.email, password:form.password,
+      role:"family", status:"active", phone:"",
+      clientId:parseInt(form.clientId),
+      assignedClientIds:[], shiftRequests:[], confirmedShifts:[]
+    };
+    try{
+      await db.collection("staff").doc(newFam.id).set(newFam);
+      setStaffList(prev=>[...prev,newFam]);
+      setForm({name:"",email:"",password:"",clientId:""});
+      setShowAdd(false);
+      alert(`${form.name}さんのアカウントを作成しました`);
+    }catch(e){ alert("作成に失敗しました"); console.error(e); }
+  };
+
+  const handleDelete=async(id,name)=>{
+    if(!window.confirm(`${name}さんのアカウントを削除しますか？`)) return;
+    try{
+      await db.collection("staff").doc(id).delete();
+      setStaffList(prev=>prev.filter(s=>s.id!==id));
+    }catch(e){ alert("削除に失敗しました"); }
+  };
+
+  return(
+    <div>
+      <div style={S.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={S.title}>👨‍👩‍👧 家族アカウント管理</div>
+          <button onClick={()=>setShowAdd(!showAdd)} style={{...S.btn("blue"),fontSize:11,padding:"5px 12px"}}>{showAdd?"閉じる":"+ アカウント追加"}</button>
+        </div>
+
+        {showAdd&&(
+          <div style={{background:COLORS.blueLight,borderRadius:8,padding:12,marginBottom:14,border:`1px solid ${COLORS.blue}`}}>
+            <div style={{fontSize:12,fontWeight:600,color:COLORS.blue,marginBottom:10}}>新規家族アカウント</div>
+            <div style={S.row}>
+              <div style={S.col}><label style={S.label}>氏名 *</label><input style={S.input} placeholder="山田 太郎" value={form.name} onChange={e=>setF("name",e.target.value)}/></div>
+            </div>
+            <div style={{marginBottom:8}}><label style={S.label}>メールアドレス *</label><input style={S.input} type="email" placeholder="yamada@example.com" value={form.email} onChange={e=>setF("email",e.target.value)}/></div>
+            <div style={{marginBottom:8}}><label style={S.label}>パスワード（4文字以上）*</label><input style={S.input} type="password" placeholder="パスワード" value={form.password} onChange={e=>setF("password",e.target.value)}/></div>
+            <div style={{marginBottom:12}}>
+              <label style={S.label}>担当利用者 *</label>
+              <select style={S.input} value={form.clientId} onChange={e=>setF("clientId",e.target.value)}>
+                <option value="">選択してください</option>
+                {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <button style={{...S.btn("primary"),fontSize:12,padding:"7px 18px"}} onClick={handleAdd}>アカウントを作成</button>
+          </div>
+        )}
+
+        {familyAccounts.length===0?(
+          <div style={{color:COLORS.muted,fontSize:13,textAlign:"center",padding:"14px 0"}}>家族アカウントはまだありません</div>
+        ):familyAccounts.map(f=>{
+          const linkedClient=clients.find(c=>c.id===f.clientId);
+          return(
+            <div key={f.id} style={S.listItem}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{f.name}</div>
+                  <div style={{fontSize:11,color:COLORS.muted,marginBottom:2}}>{f.email}</div>
+                  <div style={{fontSize:11,color:COLORS.sageDark}}>担当利用者: {linkedClient?.name||"未設定"}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  <span style={S.badge(COLORS.accent)}>家族</span>
+                  <button onClick={()=>handleDelete(f.id,f.name)} style={{...S.btn("danger"),fontSize:10,padding:"3px 8px"}}>削除</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1857,7 +1963,7 @@ function App(){
 
       {topTab==="calendar"&&(
         <div style={S.main}>
-          <CalendarView allSchedules={allSchedules} staffList={staffList} onDayClick={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}}/>
+          <CalendarView allSchedules={allSchedules} staffList={staffList} currentUser={currentUser} onDayClick={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}} onEditSchedule={handleEditSchedule} onDeleteSchedule={handleDeleteSchedule}/>
         </div>
       )}
 
