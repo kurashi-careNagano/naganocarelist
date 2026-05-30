@@ -385,7 +385,7 @@ function LoginScreen({onLogin, staffList}){
         <div style={{textAlign:"center",marginBottom:26}}>
           <div style={{fontSize:36,marginBottom:7}}>🌱</div>
           <div style={{fontSize:21,fontWeight:700,color:COLORS.sageDark}}>暮らしのケア記録</div>
-          <div style={{fontSize:11,color:COLORS.muted,marginTop:3}}>スタッフ・管理者ログイン</div>
+          <div style={{fontSize:11,color:COLORS.muted,marginTop:3}}>スタッフ・管理者・ご家族ログイン</div>
         </div>
         <div style={S.card}>
           <div style={{marginBottom:10}}><label style={S.label}>メールアドレス</label><input style={S.input} type="email" placeholder="example@care.jp" value={email} onChange={e=>setEmail(e.target.value)}/></div>
@@ -400,8 +400,8 @@ function LoginScreen({onLogin, staffList}){
 }
 
 // ========== FAMILY PORTAL ==========
-function FamilyPortal({currentUser,clients}){
-  const client=clients.find(c=>c.id===currentUser.clientId);
+function FamilyPortal({currentUser,clients,viewingClient}){
+  const client=viewingClient||clients.find(c=>c.id===currentUser.clientId);
   if(!client) return <div style={{padding:20,color:COLORS.muted,textAlign:"center"}}>紐付けられた利用者が見つかりません</div>;
   const shared=client.records.filter(r=>r.familyShare);
   const condColor={"良好":COLORS.sage,"普通":"#B0A875","やや不調":COLORS.accent,"不調":COLORS.red,"要注意":"#8B2FC9"};
@@ -421,6 +421,14 @@ function FamilyPortal({currentUser,clients}){
             <div style={{fontSize:11,color:COLORS.muted,marginBottom:4}}>訪問：{r.entryTime}〜{r.exitTime||"—"}　担当：{r.staff}</div>
             {r.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:3}}>{serviceLabel(r.services)}</div>}
             {r.memo&&<div style={{fontSize:13,lineHeight:1.7,marginBottom:4}}>{r.memo}</div>}
+            {client.showFeeToFamily&&r.fee&&r.fee.total>0&&(
+              <div style={{marginTop:6,padding:"8px 10px",background:COLORS.goldLight,borderRadius:8,border:"1px solid #E8C840"}}>
+                <div style={{fontSize:12,color:COLORS.gold,fontWeight:700}}>💴 ご請求額　{r.fee.total.toLocaleString()}円</div>
+                {r.fee.breakdown&&r.fee.breakdown.map((b,i)=>(
+                  <div key={i} style={{fontSize:11,color:COLORS.muted,marginTop:2}}>{b.label}　{b.amount.toLocaleString()}円</div>
+                ))}
+              </div>
+            )}
             <PhotoGrid photos={r.photos}/>
           </div>
         ))
@@ -877,6 +885,14 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
                 </div>
             }
           </div>
+          {currentUser?.role==="admin"&&(
+            <div style={{marginBottom:8}}>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12}}>
+                <input type="checkbox" checked={form.showFeeToFamily||false} onChange={e=>set("showFeeToFamily",e.target.checked)} style={{width:15,height:15,accentColor:COLORS.sageDark}}/>
+                <span>💴 ご家族に料金を公開する</span>
+              </label>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -918,12 +934,18 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
             )}
           </div>
         </div>
-        <div>
+        <div style={{marginBottom:6}}>
           <label style={S.label}>🚗 送迎遠距離加算</label>
           <div style={{fontSize:isPC?14:13,color:client.distanceKm&&parseFloat(client.distanceKm)>=15?COLORS.accent:COLORS.muted}}>
             {client.distanceKm&&parseFloat(client.distanceKm)>0
               ?`${client.distanceKm}km（${parseFloat(client.distanceKm)<15?"加算なし":parseFloat(client.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(client.distanceKm)-15)/10)*1000}円`}）`
               :"未設定（加算なし）"}
+          </div>
+        </div>
+        <div>
+          <label style={S.label}>💴 家族への料金公開</label>
+          <div style={{fontSize:isPC?14:13,fontWeight:600,color:client.showFeeToFamily?COLORS.sageDark:COLORS.muted}}>
+            {client.showFeeToFamily?"公開する":"非公開"}
           </div>
         </div>
       </div>
@@ -1738,7 +1760,7 @@ function App(){
   const [showAddClient,setShowAddClient]=useState(false);
   const [showSchedModal,setShowSchedModal]=useState(false);
   const [schedDefaultDate,setSchedDefaultDate]=useState(null);
-  const [newClient,setNewClient]=useState({name:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:"",distanceKm:""});
+  const [newClient,setNewClient]=useState({name:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:"",distanceKm:"",showFeeToFamily:false});
   const [editingSchedule,setEditingSchedule]=useState(null);
 
   if(!currentUser) return <LoginScreen onLogin={setCurrentUser} staffList={staffList}/>;
@@ -1860,7 +1882,7 @@ function App(){
                   onUpdateRecord={async updated=>{ const nr=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
                   onDeleteRecord={async id=>{ if(!window.confirm("この記録を削除しますか？")) return; const nr=selected.records.filter(r=>r.id!==id); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
                 />}
-                {clientTab==="family"&&<FamilyPortal currentUser={{role:"family",clientId:selected.id}} clients={clients}/>}
+                {clientTab==="family"&&<FamilyPortal currentUser={{role:"family",clientId:selected.id}} clients={clients} viewingClient={selected}/>}
               </div>
             </div>
           ):(
@@ -1873,7 +1895,7 @@ function App(){
                 onDeleteRecord={async id=>{ if(!window.confirm("この記録を削除しますか？")) return; const nr=selected.records.filter(r=>r.id!==id); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
               />}
               {clientTab==="assessment"&&<AssessmentView client={selected} onUpdate={handleUpdateClient} isPC={isPC} currentUser={currentUser}/>}
-              {clientTab==="family"&&<FamilyPortal currentUser={{role:"family",clientId:selected.id}} clients={clients}/>}
+              {clientTab==="family"&&<FamilyPortal currentUser={{role:"family",clientId:selected.id}} clients={clients} viewingClient={selected}/>}
             </>
           )}
           {isPC&&clientTab==="assessment"&&<AssessmentView client={selected} onUpdate={handleUpdateClient} isPC={isPC} currentUser={currentUser}/>}
@@ -1937,6 +1959,12 @@ function App(){
                     {parseFloat(newClient.distanceKm)<20?"遠距離加算：+1,000円":`遠距離加算：+${Math.ceil((parseFloat(newClient.distanceKm)-15)/10)*1000}円`}が自動加算されます
                   </div>
                 )}
+              </div>
+              <div style={{marginBottom:8}}>
+                <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12}}>
+                  <input type="checkbox" checked={newClient.showFeeToFamily||false} onChange={e=>setNC("showFeeToFamily",e.target.checked)} style={{width:15,height:15,accentColor:COLORS.sageDark}}/>
+                  <span>💴 ご家族に料金を公開する</span>
+                </label>
               </div>
               <div style={{marginBottom:8}}><label style={S.label}>🌿 生きてきた過程・人となり</label><textarea style={S.textarea} placeholder="生まれや育ち、仕事、趣味、大切にしてきたこと、性格など..." value={newClient.life} onChange={e=>setNC("life",e.target.value)}/></div>
               <div style={{marginBottom:12}}><label style={S.label}>関わる際のポイント・注意点</label><textarea style={{...S.textarea,minHeight:52}} placeholder="接し方のコツ、好きなこと、避けたほうがよいことなど..." value={newClient.notes} onChange={e=>setNC("notes",e.target.value)}/></div>
