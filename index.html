@@ -256,20 +256,19 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
     breakdown.push({label:`外出支援・車あり（${m}分）`,amount:fee}); total+=fee;
     const km=parseFloat(carKm)||0;
     if(km>0){const cf=Math.round(km*30);breakdown.push({label:`車同乗 ${km}km×30円`,amount:cf});total+=cf;}
-    // 遠距離加算 + ガソリン代（10kmごと300円、往復×2）
+    // ガソリン代 + 遠距離加算（どちらも往復計算）
     const dkm=parseFloat(clientDistanceKm)||0;
     if(dkm>0){
-      // ガソリン代（片道km × 2 × 300円 ÷ 10km）
-      const gasFee=Math.ceil(dkm*2/1)*30;
-      if(gasFee>0){
-        breakdown.push({label:`⛽ ガソリン代（${dkm}km往復 10kmごと30円）`,amount:gasFee}); total+=gasFee;
-      }
-      // 遠距離加算（15km以上）
+      const roundTrip=dkm*2; // 往復距離
+      // ガソリン代（1kmあたり30円・往復）
+      const gasFee=Math.round(roundTrip*30);
+      breakdown.push({label:`⛽ ガソリン代（片道${dkm}km×往復×30円）`,amount:gasFee}); total+=gasFee;
+      // 遠距離加算（片道15km以上・往復分）
       if(dkm>=15&&dkm<20){
-        breakdown.push({label:`🚗 遠距離加算（${dkm}km）`,amount:1000}); total+=1000;
+        breakdown.push({label:`🚗 遠距離加算（片道${dkm}km×往復）`,amount:2000}); total+=2000;
       } else if(dkm>=20){
-        const extra=Math.ceil((dkm-15)/10)*1000;
-        breakdown.push({label:`🚗 遠距離加算（${dkm}km）`,amount:extra}); total+=extra;
+        const extra=Math.ceil((dkm-15)/10)*1000*2;
+        breakdown.push({label:`🚗 遠距離加算（片道${dkm}km×往復）`,amount:extra}); total+=extra;
       }
     }
   }
