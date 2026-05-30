@@ -441,30 +441,7 @@ function FamilyPortal({currentUser,clients,viewingClient}){
   );
 }
 
-// ========== TIMER ==========
-function Timer({clientName}){
-  const [running,setRunning]=useState(false),[seconds,setSeconds]=useState(0);
-  const [entryTime,setEntryTime]=useState(null),[exitTime,setExitTime]=useState(null);
-  const ref=useState(null);
-  const fmt=s=>{const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sc).padStart(2,"0")}`;};
-  const nowStr=()=>{const n=new Date();return`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;};
-  return(
-    <div style={S.card}>
-      <div style={S.title}>⏱ 入退室タイマー　<span style={{fontWeight:400,color:COLORS.muted}}>{clientName}</span></div>
-      <div style={S.timerDisplay}>{fmt(seconds)}</div>
-      <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:10}}>
-        {!running&&seconds===0&&<button style={S.btn("primary")} onClick={()=>{setRunning(true);setEntryTime(nowStr());setSeconds(0);ref[1](setInterval(()=>setSeconds(s=>s+1),1000));}}>入室開始</button>}
-        {running&&<button style={S.btn("danger")} onClick={()=>{setRunning(false);setExitTime(nowStr());clearInterval(ref[0]);}}>退室</button>}
-        {!running&&seconds>0&&<button style={S.btn("outline")} onClick={()=>{setRunning(false);setSeconds(0);setEntryTime(null);setExitTime(null);clearInterval(ref[0]);}}>リセット</button>}
-      </div>
-      {(entryTime||exitTime)&&<div style={{display:"flex",justifyContent:"center",gap:16,fontSize:12,color:COLORS.muted}}>
-        {entryTime&&<span>入室 <strong style={{color:COLORS.charcoal}}>{entryTime}</strong></span>}
-        {exitTime&&<span>退室 <strong style={{color:COLORS.charcoal}}>{exitTime}</strong></span>}
-        {exitTime&&<span>時間 <strong style={{color:COLORS.sageDark}}>{fmt(seconds)}</strong></span>}
-      </div>}
-    </div>
-  );
-}
+
 
 // ========== PAYMENT SELECTOR ==========
 function PaymentSelector({value,onChange,name="pay"}){
@@ -544,9 +521,41 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
         <div style={S.col}><label style={S.label}>訪問日</label><input style={S.input} type="date" value={form.date} onChange={e=>set("date",e.target.value)}/></div>
         <div style={S.col}><label style={S.label}>担当者名</label><input style={S.input} value={form.staff} onChange={e=>set("staff",e.target.value)}/></div>
       </div>
-      <div style={S.row}>
-        <div style={S.col}><label style={S.label}>入室時刻 *</label><input style={S.input} type="time" value={form.entryTime} onChange={e=>set("entryTime",e.target.value)}/></div>
-        <div style={S.col}><label style={S.label}>退室時刻</label><input style={S.input} type="time" value={form.exitTime} onChange={e=>set("exitTime",e.target.value)}/></div>
+      {/* 支援開始・終了ボタン */}
+      <div style={{marginBottom:12}}>
+        <div style={S.row}>
+          <div style={S.col}>
+            <button
+              onClick={()=>{ const n=new Date(); set("entryTime",`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`); }}
+              style={{...S.btn(form.entryTime?"outline":"primary"),width:"100%",padding:"12px",fontSize:14,fontWeight:700}}
+            >
+              {form.entryTime?`✅ 支援開始 ${form.entryTime}`:"🟢 支援開始"}
+            </button>
+          </div>
+          <div style={S.col}>
+            <button
+              onClick={()=>{ const n=new Date(); set("exitTime",`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`); }}
+              style={{...S.btn(form.exitTime?"outline":"danger"),width:"100%",padding:"12px",fontSize:14,fontWeight:700}}
+              disabled={!form.entryTime}
+            >
+              {form.exitTime?`✅ 支援終了 ${form.exitTime}`:"🔴 支援終了"}
+            </button>
+          </div>
+        </div>
+        {form.entryTime&&form.exitTime&&(()=>{
+          const [eh,em]=form.entryTime.split(":").map(Number);
+          const [xh,xm]=form.exitTime.split(":").map(Number);
+          const diff=(xh*60+xm)-(eh*60+em);
+          return diff>0?<div style={{textAlign:"center",fontSize:12,color:COLORS.sageDark,fontWeight:600}}>支援時間：{Math.floor(diff/60)>0?`${Math.floor(diff/60)}時間`:""}{diff%60>0?`${diff%60}分`:""}</div>:null;
+        })()}
+        {/* 押し忘れ用手入力 */}
+        <div style={{marginTop:8,padding:"8px 10px",background:COLORS.cream,borderRadius:8}}>
+          <div style={{fontSize:10,color:COLORS.muted,marginBottom:6}}>押し忘れた場合は手入力してください</div>
+          <div style={S.row}>
+            <div style={S.col}><label style={S.label}>開始時刻</label><input style={S.input} type="time" value={form.entryTime} onChange={e=>set("entryTime",e.target.value)}/></div>
+            <div style={S.col}><label style={S.label}>終了時刻</label><input style={S.input} type="time" value={form.exitTime} onChange={e=>set("exitTime",e.target.value)}/></div>
+          </div>
+        </div>
       </div>
 
       <hr style={S.divider}/>
@@ -1865,7 +1874,7 @@ function App(){
           <span style={{fontSize:10,color:COLORS.sageLight}}>{selected.age}歳</span>
         </div>
         <div style={S.nav}>
-          {[["record","📝 記録"],["timer","⏱ タイマー"],["schedule","📅 予定"],["list","📋 一覧"],["assessment","🌿 アセスメント"],["family","👨‍👩‍👧 家族"]].map(([key,label])=>(
+          {[["record","📝 記録"],["schedule","📅 予定"],["list","📋 一覧"],["assessment","🌿 アセスメント"],["family","👨‍👩‍👧 家族"]].map(([key,label])=>(
             <button key={key} style={S.navBtn(clientTab===key)} onClick={()=>setClientTab(key)}>{label}</button>
           ))}
         </div>
@@ -1887,7 +1896,7 @@ function App(){
               </div>
               <div>
                 {clientTab==="record"&&<RecordForm client={selected} currentUser={currentUser} staffList={staffList} onSave={handleSaveRecord}/>}
-                {clientTab==="timer"&&<Timer clientName={selected.name}/>}
+                
                 {clientTab==="schedule"&&<ClientScheduleView client={selected} allSchedules={allSchedules} currentUser={currentUser} onAddSchedule={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}} onConfirmSchedule={(id)=>handleConfirmSchedule(id, allSchedules.find(s=>s.id===id)?.staff)} onEditSchedule={handleEditSchedule} onDeleteSchedule={handleDeleteSchedule}/>}
                 {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected}
                   onUpdateRecord={async updated=>{ const nr=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
@@ -1899,7 +1908,7 @@ function App(){
           ):(
             <>
               {clientTab==="record"&&<RecordForm client={selected} currentUser={currentUser} staffList={staffList} onSave={handleSaveRecord}/>}
-              {clientTab==="timer"&&<Timer clientName={selected.name}/>}
+              
               {clientTab==="schedule"&&<ClientScheduleView client={selected} allSchedules={allSchedules} currentUser={currentUser} onAddSchedule={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}} onConfirmSchedule={(id)=>handleConfirmSchedule(id, allSchedules.find(s=>s.id===id)?.staff)} onEditSchedule={handleEditSchedule} onDeleteSchedule={handleDeleteSchedule}/>}
               {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected}
                 onUpdateRecord={async updated=>{ const nr=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
