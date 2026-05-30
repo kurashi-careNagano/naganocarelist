@@ -306,7 +306,9 @@ function LoginScreen({onLogin, staffList}){
           if(acc.status==="pending"){
             setErr("承認待ちです。管理者の承認をお待ちください。");
           } else {
-            setErr(""); onLogin({...acc, _id:doc.id});
+            const userData={...acc, _id:doc.id};
+            localStorage.setItem("kurashi_care_user", JSON.stringify(userData));
+            setErr(""); onLogin(userData);
           }
         } else {
           setErr("パスワードが違います");
@@ -1750,7 +1752,12 @@ function ClientCard({client,onClick,isPC}){
 
 // ========== MAIN APP ==========
 function App(){
-  const [currentUser,setCurrentUser]=useState(null);
+  const [currentUser,setCurrentUser]=useState(()=>{
+    try{
+      const saved=localStorage.getItem("kurashi_care_user");
+      return saved?JSON.parse(saved):null;
+    }catch(e){ return null; }
+  });
   const [isPC,setIsPC]=useState(window.innerWidth>=900);
   useEffect(()=>{
     const handler=()=>setIsPC(window.innerWidth>=900);
@@ -1788,7 +1795,7 @@ function App(){
     <div style={S.app}>
       <div style={S.header}>
         <span style={S.headerTitle}>🌱 暮らしのケア記録</span>
-        <button onClick={()=>setCurrentUser(null)} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>ログアウト</button>
+        <button onClick={()=>{ localStorage.removeItem("kurashi_care_user"); setCurrentUser(null); }} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>ログアウト</button>
       </div>
       <FamilyPortal currentUser={currentUser} clients={clients}/>
     </div>
@@ -1941,7 +1948,7 @@ function App(){
             <span style={{...S.badge(roleBadgeColor[currentUser.role]),marginRight:4}}>{roleLabel[currentUser.role]}</span>
             {currentUser.name}
           </span>
-          <button onClick={()=>setCurrentUser(null)} style={{background:"none",border:"1px solid rgba(255,255,255,0.3)",color:"rgba(255,255,255,0.8)",cursor:"pointer",fontSize:10,borderRadius:6,padding:"2px 7px"}}>ログアウト</button>
+          <button onClick={()=>{ localStorage.removeItem("kurashi_care_user"); setCurrentUser(null); }} style={{background:"none",border:"1px solid rgba(255,255,255,0.3)",color:"rgba(255,255,255,0.8)",cursor:"pointer",fontSize:10,borderRadius:6,padding:"2px 7px"}}>ログアウト</button>
         </div>
       </div>
       <div style={S.nav}>
