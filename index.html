@@ -485,8 +485,32 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
     paymentMethod:client?.paymentMethod||"",
     photos:[]
   };
-  const [form,setForm]=useState(empty);
-  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  // ページ更新後も支援中の状態を維持
+  const storageKey=`kurashi_care_form_${client?.id}`;
+  const [form,setForm]=useState(()=>{
+    try{
+      const saved=localStorage.getItem(storageKey);
+      if(saved){
+        const parsed=JSON.parse(saved);
+        // 当日のデータのみ復元（写真はサイズが大きいので除外）
+        if(parsed.date===new Date().toISOString().slice(0,10)){
+          return {...parsed, photos:[]};
+        }
+      }
+    }catch(e){}
+    return empty;
+  });
+
+  const set=(k,v)=>setForm(f=>{
+    const next={...f,[k]:v};
+    try{
+      // 写真以外を保存（容量節約）
+      const toSave={...next, photos:[]};
+      localStorage.setItem(storageKey, JSON.stringify(toSave));
+    }catch(e){}
+    return next;
+  });
 
   const toggleSvc=key=>setForm(f=>{
     const checked=f.services.includes(key);
@@ -717,6 +741,7 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
       <button style={S.btn("primary")} onClick={()=>{
         if(!form.staff||!form.entryTime){alert("担当者名と入室時刻は必須です");return;}
         onSave({...form,id:Date.now(),fee});
+        try{ localStorage.removeItem(storageKey); }catch(e){}
         setForm({...empty,date:new Date().toISOString().slice(0,10)});
       }}>記録を保存</button>
     </div>
