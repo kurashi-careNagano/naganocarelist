@@ -533,7 +533,7 @@ function PaymentSelector({value,onChange,name="pay"}){
 }
 
 // ========== RECORD FORM ==========
-function RecordForm({client,currentUser,staffList=[],onSave}){
+function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditing}){
   const empty={
     date:new Date().toISOString().slice(0,10),
     staff:currentUser?.name||"",
@@ -552,11 +552,12 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
   // ページ更新後も支援中の状態を維持
   const storageKey=`kurashi_care_form_${client?.id}`;
   const [form,setForm]=useState(()=>{
+    // 編集モードの場合はinitialDataを使用
+    if(isEditing&&initialData) return {...initialData, photos:initialData.photos||[]};
     try{
       const saved=localStorage.getItem(storageKey);
       if(saved){
         const parsed=JSON.parse(saved);
-        // 当日のデータのみ復元（写真はサイズが大きいので除外）
         if(parsed.date===new Date().toISOString().slice(0,10)){
           return {...parsed, photos:[]};
         }
@@ -892,10 +893,14 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
       </div>
       <button style={S.btn("primary")} onClick={()=>{
         if(!form.staff||!form.entryTime){alert("担当者名と入室時刻は必須です");return;}
-        onSave({...form,id:Date.now(),fee});
-        try{ localStorage.removeItem(storageKey); }catch(e){}
-        setForm({...empty,date:new Date().toISOString().slice(0,10)});
-      }}>記録を保存</button>
+        if(isEditing){
+          onSave({...form,fee});
+        } else {
+          onSave({...form,id:Date.now(),fee});
+          try{ localStorage.removeItem(storageKey); }catch(e){}
+          setForm({...empty,date:new Date().toISOString().slice(0,10)});
+        }
+      }}>{isEditing?"変更を保存":"記録を保存"}</button>
     </div>
   );
 }
@@ -923,98 +928,73 @@ function PhotoGrid({photos,compact}){
 }
 
 // ========== RECORD LIST ==========
-function RecordList({records, currentUser, client, onUpdateRecord, onDeleteRecord}){
+function RecordList({records, currentUser, client, onUpdateRecord, onDeleteRecord, staffList=[]}){
   if(records.length===0) return <div style={{...S.card,color:COLORS.muted,textAlign:"center",fontSize:13,padding:24}}>まだ記録がありません</div>;
   const condColor={"良好":"#7A9E87","普通":"#B0A875","やや不調":"#C4885A","不調":"#C0504A","要注意":"#8B2FC9"};
   const [editingId,setEditingId]=useState(null);
-  const [editForm,setEditForm]=useState(null);
-  const setEF=(k,v)=>setEditForm(f=>({...f,[k]:v}));
+  const canEdit=(r)=> currentUser?.role==="admin"||currentUser?.role==="sv"||currentUser?.name===r.staff;
 
-  const startEdit=(r)=>{
-    setEditingId(r.id);
-    setEditForm({...r});
-  };
-  const cancelEdit=()=>{ setEditingId(null); setEditForm(null); };
-  const saveEdit=async()=>{
-    const updated={...editForm, fee:null}; // 料金は再計算のため一旦null
-    onUpdateRecord&&onUpdateRecord(updated);
-    setEditingId(null); setEditForm(null);
-  };
-
-  const canEdit=(r)=> currentUser?.role==="admin" || currentUser?.name===r.staff;
+  // 編集中はRecordFormを全画面表示
+  if(editingId){
+    const editTarget=records.find(r=>r.id===editingId);
+    return(
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <button onClick={()=>setEditingId(null)} style={{...S.btn("outline"),fontSize:12,padding:"6px 14px"}}>← 一覧に戻る</button>
+          <span style={{fontSize:13,fontWeight:600,color:COLORS.sageDark}}>✏️ 記録を編集</span>
+        </div>
+        <RecordForm
+          client={client}
+          currentUser={currentUser}
+          staffList={staffList}
+          initialData={editTarget}
+          isEditing={true}
+          onSave={async updated=>{
+            await onUpdateRecord(updated);
+            setEditingId(null);
+          }}
+        />
+      </div>
+    );
+  }
 
   return(
     <div style={S.card}>
       <div style={S.title}>📋 訪問記録一覧</div>
-      {records.slice().reverse().map(r=>{
-        const isEditing=editingId===r.id;
-        if(isEditing&&editForm){
-          return(
-            <div key={r.id} style={{...S.listItem,background:COLORS.cream,borderRadius:8,padding:12}}>
-              <div style={{...S.title,fontSize:12,marginBottom:8}}>✏️ 記録を編集</div>
-              <div style={S.row}>
-                <div style={S.col}><label style={S.label}>訪問日</label><input style={S.input} type="date" value={editForm.date} onChange={e=>setEF("date",e.target.value)}/></div>
-                <div style={S.col}><label style={S.label}>担当者</label><input style={S.input} value={editForm.staff} onChange={e=>setEF("staff",e.target.value)}/></div>
+      {records.slice().reverse().map(r=>(
+        <div key={r.id} style={S.listItem}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"wrap"}}>
+                <span style={{fontSize:13,fontWeight:700}}>{r.date}</span>
+                <span style={S.badge(condColor[r.condition]||COLORS.muted)}>{r.condition}</span>
+                {r.familyShare&&<span style={S.badge(COLORS.accent)}>家族共有</span>}
               </div>
-              <div style={S.row}>
-                <div style={S.col}><label style={S.label}>入室</label><input style={S.input} type="time" value={editForm.entryTime} onChange={e=>setEF("entryTime",e.target.value)}/></div>
-                <div style={S.col}><label style={S.label}>退室</label><input style={S.input} type="time" value={editForm.exitTime} onChange={e=>setEF("exitTime",e.target.value)}/></div>
-              </div>
-              <div style={{marginBottom:8}}>
-                <label style={S.label}>その日の状態</label>
-                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                  {["良好","普通","やや不調","不調","要注意"].map(c=>(
-                    <button key={c} onClick={()=>setEF("condition",c)} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${editForm.condition===c?COLORS.sageDark:COLORS.border}`,background:editForm.condition===c?COLORS.sageDark:"white",color:editForm.condition===c?"white":COLORS.muted,cursor:"pointer",fontSize:11,fontWeight:editForm.condition===c?700:400}}>{c}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{marginBottom:8}}><label style={S.label}>メモ・様子</label><textarea style={{...S.textarea,minHeight:60}} value={editForm.memo||""} onChange={e=>setEF("memo",e.target.value)}/></div>
-              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
-                <input type="checkbox" checked={editForm.familyShare||false} onChange={e=>setEF("familyShare",e.target.checked)} style={{width:14,height:14,accentColor:COLORS.sageDark}}/>
-                <span style={{fontSize:11}}>ご家族にも共有する</span>
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <button style={{...S.btn("primary"),fontSize:12,padding:"7px 16px"}} onClick={saveEdit}>保存</button>
-                <button style={{...S.btn("outline"),fontSize:12,padding:"7px 14px"}} onClick={cancelEdit}>キャンセル</button>
-              </div>
-            </div>
-          );
-        }
-        return(
-          <div key={r.id} style={S.listItem}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"wrap"}}>
-                  <span style={{fontSize:13,fontWeight:700}}>{r.date}</span>
-                  <span style={S.badge(condColor[r.condition]||COLORS.muted)}>{r.condition}</span>
-                  {r.familyShare&&<span style={S.badge(COLORS.accent)}>家族共有</span>}
-                </div>
-                <div style={{fontSize:11,color:COLORS.muted,marginBottom:2}}>担当：{r.staff}　{r.entryTime}〜{r.exitTime||"—"}</div>
-                {r.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:2}}>{serviceLabel(r.services)}{r.carKm?`　🚗 ${r.carKm}km`:""}</div>}
-                {r.paymentMethod&&(
-            <div style={{fontSize:11,marginBottom:2,fontWeight:(r.paymentMethod==="day_cash")?"700":"400",color:(r.paymentMethod==="day_cash")?COLORS.red:COLORS.muted,background:(r.paymentMethod==="day_cash")?"#FFF0F0":"transparent",borderRadius:(r.paymentMethod==="day_cash")?6:0,padding:(r.paymentMethod==="day_cash")?"2px 7px":"0",display:"inline-block"}}>
-              {paymentLabel(r.paymentMethod)}{r.paymentMethod==="day_cash"&&" 💴"}
-            </div>
-          )}
-                {r.fee&&r.fee.total>0&&(
-            <div style={{fontSize:13,fontWeight:700,marginBottom:2,color:r.paymentMethod==="day_cash"?COLORS.red:COLORS.gold}}>
-              💴 {r.fee.total.toLocaleString()}円
-              {r.paymentMethod==="day_cash"&&<span style={{fontSize:10,marginLeft:6,background:COLORS.red,color:"white",borderRadius:4,padding:"1px 5px"}}>現金当日</span>}
-            </div>
-          )}
-                {r.memo&&<div style={{fontSize:12,color:COLORS.charcoal,lineHeight:1.6}}>{r.memo}</div>}
-                <PhotoGrid photos={r.photos} compact={true}/>
-              </div>
-              {canEdit(r)&&(
-                <div style={{display:"flex",flexDirection:"column",gap:4,marginLeft:8}}>
-                  <button onClick={()=>startEdit(r)} style={{...S.btn("outline"),fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}>✏️ 編集</button>
-                  <button onClick={()=>onDeleteRecord&&onDeleteRecord(r.id)} style={{...S.btn("danger"),fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}>🗑 削除</button>
+              <div style={{fontSize:11,color:COLORS.muted,marginBottom:2}}>担当：{r.staff}　{r.entryTime}〜{r.exitTime||"—"}</div>
+              {r.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:2}}>{serviceLabel(r.services)}{r.carKm?`　🚗 ${r.carKm}km`:""}</div>}
+              {r.paymentMethod&&(
+                <div style={{fontSize:11,marginBottom:2,fontWeight:r.paymentMethod==="day_cash"?"700":"400",color:r.paymentMethod==="day_cash"?COLORS.red:COLORS.muted,background:r.paymentMethod==="day_cash"?"#FFF0F0":"transparent",borderRadius:r.paymentMethod==="day_cash"?6:0,padding:r.paymentMethod==="day_cash"?"2px 7px":"0",display:"inline-block"}}>
+                  {paymentLabel(r.paymentMethod)}{r.paymentMethod==="day_cash"&&" 💴"}
                 </div>
               )}
+              {r.fee&&r.fee.total>0&&(
+                <div style={{fontSize:13,fontWeight:700,marginBottom:2,color:r.paymentMethod==="day_cash"?COLORS.red:COLORS.gold}}>
+                  💴 {r.fee.total.toLocaleString()}円
+                  {r.paymentMethod==="day_cash"&&<span style={{fontSize:10,marginLeft:6,background:COLORS.red,color:"white",borderRadius:4,padding:"1px 5px"}}>現金当日</span>}
+                </div>
+              )}
+              {r.memo&&<div style={{fontSize:12,color:COLORS.charcoal,lineHeight:1.6}}>{r.memo}</div>}
+              <PhotoGrid photos={r.photos} compact={true}/>
             </div>
+            {canEdit(r)&&(
+              <div style={{display:"flex",flexDirection:"column",gap:4,marginLeft:8}}>
+                <button onClick={()=>setEditingId(r.id)} style={{...S.btn("outline"),fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}>✏️ 編集</button>
+                <button onClick={()=>onDeleteRecord&&onDeleteRecord(r.id)} style={{...S.btn("danger"),fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}>🗑 削除</button>
+              </div>
+            )}
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -2091,7 +2071,7 @@ function App(){
                 {clientTab==="record"&&<RecordForm client={selected} currentUser={currentUser} staffList={staffList} onSave={handleSaveRecord}/>}
                 
                 {clientTab==="schedule"&&<ClientScheduleView client={selected} allSchedules={allSchedules} currentUser={currentUser} onAddSchedule={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}} onConfirmSchedule={(id)=>handleConfirmSchedule(id, allSchedules.find(s=>s.id===id)?.staff)} onEditSchedule={handleEditSchedule} onDeleteSchedule={handleDeleteSchedule}/>}
-                {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected}
+                {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected} staffList={staffList}
                   onUpdateRecord={async updated=>{ const nr=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
                   onDeleteRecord={async id=>{ if(!window.confirm("この記録を削除しますか？")) return; const nr=selected.records.filter(r=>r.id!==id); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
                 />}
@@ -2103,7 +2083,7 @@ function App(){
               {clientTab==="record"&&<RecordForm client={selected} currentUser={currentUser} staffList={staffList} onSave={handleSaveRecord}/>}
               
               {clientTab==="schedule"&&<ClientScheduleView client={selected} allSchedules={allSchedules} currentUser={currentUser} onAddSchedule={d=>{setEditingSchedule(null);setSchedDefaultDate(d);setShowSchedModal(true);}} onConfirmSchedule={(id)=>handleConfirmSchedule(id, allSchedules.find(s=>s.id===id)?.staff)} onEditSchedule={handleEditSchedule} onDeleteSchedule={handleDeleteSchedule}/>}
-              {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected}
+              {clientTab==="list"&&<RecordList records={selected.records} currentUser={currentUser} client={selected} staffList={staffList}
                 onUpdateRecord={async updated=>{ const nr=selected.records.map(r=>r.id===updated.id?updated:r); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
                 onDeleteRecord={async id=>{ if(!window.confirm("この記録を削除しますか？")) return; const nr=selected.records.filter(r=>r.id!==id); setClients(prev=>prev.map(c=>c.id===selected.id?{...c,records:nr}:c)); await saveDoc("clients",selected.id,{records:nr}); }}
               />}
