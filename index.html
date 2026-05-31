@@ -553,7 +553,27 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
   const storageKey=`kurashi_care_form_${client?.id}`;
   const [form,setForm]=useState(()=>{
     // 編集モードの場合はinitialDataを使用
-    if(isEditing&&initialData) return {...initialData, photos:initialData.photos||[]};
+    if(isEditing&&initialData) return {
+      // デフォルト値で補完してから既存データを上書き
+      date:new Date().toISOString().slice(0,10),
+      staff:currentUser?.name||"",
+      entryTime:"", exitTime:"",
+      condition:"良好",
+      services:[],
+      serviceMins:{},
+      carKm:"",
+      distanceKm:"",
+      otherItems:[{note:"",fee:""}],
+      memo:"", familyShare:false,
+      paymentMethod:client?.paymentMethod||"",
+      photos:[],
+      // 既存データで上書き
+      ...initialData,
+      photos:initialData.photos||[],
+      services:initialData.services||[],
+      serviceMins:initialData.serviceMins||{},
+      otherItems:initialData.otherItems||[{note:"",fee:""}],
+    };
     try{
       const saved=localStorage.getItem(storageKey);
       if(saved){
