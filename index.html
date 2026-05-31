@@ -31,6 +31,7 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <script>
 
@@ -46,6 +47,7 @@ const firebaseConfig = {
 // Firebase初期化
 const firebaseApp = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 
   </script>
 
@@ -358,28 +360,50 @@ function LoginScreen({onLogin, staffList}){
     setChecking(true);
     setErr("");
     try {
-      // メールアドレスまたはloginIdで検索
+      // Firestoreでloginまたはemailからユーザー情報取得
       let snapshot = await db.collection("staff").where("email","==",loginId).get();
       if(snapshot.empty){
-        // loginIdフィールドでも検索
         snapshot = await db.collection("staff").where("loginId","==",loginId).get();
       }
-      if(!snapshot.empty){
-        const doc=snapshot.docs[0];
-        const acc=doc.data();
-        if(acc.password===password){
-          if(acc.status==="pending"){
-            setErr("承認待ちです。管理者の承認をお待ちください。");
-          } else {
-            const userData={...acc, _id:doc.id};
-            localStorage.setItem("kurashi_care_user", JSON.stringify(userData));
+      if(snapshot.empty){ setErr("IDまたはメールアドレスが登録されていません"); setChecking(false); return; }
+      const doc=snapshot.docs[0];
+      const acc=doc.data();
+      if(acc.status==="pending"){ setErr("承認待ちです。管理者の承認をお待ちください。"); setChecking(false); return; }
+
+      // 家族アカウント（loginId使用）はパスワード直接照合
+      const isFamilyAccount = acc.email&&acc.email.includes("@family.local");
+      if(isFamilyAccount){
+        if(acc.password!==password){ setErr("パスワードが違います"); setChecking(false); return; }
+        const userData={...acc,_id:doc.id};
+        localStorage.setItem("kurashi_care_user",JSON.stringify(userData));
+        setErr(""); onLogin(userData);
+        setChecking(false); return;
+      }
+
+      // スタッフ・管理者：Firebase Auth認証を試みる
+      try {
+        await auth.signInWithEmailAndPassword(acc.email, password);
+        const userData={...acc,_id:doc.id};
+        localStorage.setItem("kurashi_care_user",JSON.stringify(userData));
+        setErr(""); onLogin(userData);
+      } catch(authErr){
+        // Firebase Authにまだ登録されていない場合は旧パスワードで照合
+        if(["auth/user-not-found","auth/invalid-credential","auth/wrong-password","auth/invalid-login-credentials"].includes(authErr.code)){
+          if(acc.password===password){
+            // Firebase Authにユーザーを自動登録
+            try{
+              await auth.createUserWithEmailAndPassword(acc.email, password);
+            }catch(e){ /* すでにいる場合は無視 */ }
+            const userData={...acc,_id:doc.id};
+            localStorage.setItem("kurashi_care_user",JSON.stringify(userData));
             setErr(""); onLogin(userData);
+          } else {
+            setErr("パスワードが違います");
           }
         } else {
-          setErr("パスワードが違います");
+          setErr("ログインに失敗しました。もう一度お試しください。");
+          console.error(authErr);
         }
-      } else {
-        setErr("IDまたはメールアドレスが登録されていません");
       }
     } catch(e) {
       setErr("通信エラーが発生しました。もう一度お試しください。");
@@ -403,9 +427,15 @@ function LoginScreen({onLogin, staffList}){
       assignedClientIds:[], shiftRequests:[], confirmedShifts:[]
     };
     try{
+      // Firebase Authにアカウント作成
+      try{
+        await auth.createUserWithEmailAndPassword(regEmail, regPass);
+      }catch(authE){
+        if(authE.code!=="auth/email-already-in-use") throw authE;
+      }
       await db.collection("staff").doc(newStaff.id).set(newStaff);
       setRegDone(true);
-    }catch(e){ setRegErr("登録に失敗しました。もう一度お試しください。"); }
+    }catch(e){ setRegErr("登録に失敗しました。もう一度お試しください。"); console.error(e); }
   };
 
   if(mode==="register"){
@@ -1991,7 +2021,7 @@ function App(){
     <div style={S.app}>
       <div style={S.header}>
         <span style={S.headerTitle}>🌱 暮らしのケア記録</span>
-        <button onClick={()=>{ localStorage.removeItem("kurashi_care_user"); setCurrentUser(null); }} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>ログアウト</button>
+        <button onClick={()=>{ auth.signOut().catch(()=>{}); localStorage.removeItem("kurashi_care_user"); setCurrentUser(null); }} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>ログアウト</button>
       </div>
       <FamilyPortal currentUser={currentUser} clients={clients}/>
     </div>
@@ -2144,7 +2174,7 @@ function App(){
             <span style={{...S.badge(roleBadgeColor[currentUser.role]),marginRight:4}}>{roleLabel[currentUser.role]}</span>
             {currentUser.name}
           </span>
-          <button onClick={()=>{ localStorage.removeItem("kurashi_care_user"); setCurrentUser(null); }} style={{background:"none",border:"1px solid rgba(255,255,255,0.3)",color:"rgba(255,255,255,0.8)",cursor:"pointer",fontSize:10,borderRadius:6,padding:"2px 7px"}}>ログアウト</button>
+          <button onClick={()=>{ auth.signOut().catch(()=>{}); localStorage.removeItem("kurashi_care_user"); setCurrentUser(null); }} style={{background:"none",border:"1px solid rgba(255,255,255,0.3)",color:"rgba(255,255,255,0.8)",cursor:"pointer",fontSize:10,borderRadius:6,padding:"2px 7px"}}>ログアウト</button>
         </div>
       </div>
       <div style={S.nav}>
