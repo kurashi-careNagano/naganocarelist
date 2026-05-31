@@ -138,7 +138,28 @@ const SERVICE_OPTIONS = [
   {key:"outdoor_car",  label:"🚗 外出支援（車あり）"},
   {key:"aroma",        label:"🌸 アロマケア"},
   {key:"cl_plan",      label:"✨ ケアリストプラン"},
+  {key:"deco_house",   label:"🏡 でこぼこhouse"},
   {key:"other",        label:"📌 その他"},
+];
+
+// でこぼこhouseプラン定義
+const DECO_YOHAKU = [
+  {key:"yohaku_basic",    label:"ベーシック",   price:8800},
+  {key:"yohaku_standard", label:"スタンダード", price:16400},
+  {key:"yohaku_relax",    label:"ゆったりコース",price:22800},
+];
+const DECO_NORMAL = [
+  {key:"normal_basic",    label:"基本",         price:6600},
+  {key:"normal_6h",       label:"6時間",        price:10200},
+  {key:"normal_8h",       label:"8時間",        price:13200},
+  {key:"normal_eve",      label:"夕方2.5時間",  price:4500},
+];
+
+// 家族加算タイプ
+const FAMILY_ADDON = [
+  {key:"light",  label:"軽加算",  price:1500},
+  {key:"normal", label:"通常加算",price:2000},
+  {key:"heavy",  label:"重度加算",price:3000},
 ];
 const svcMap = {indoor:"宅内",errands:"買物代行",outdoor_nocar:"外出(車なし)",outdoor_car:"外出(車あり)",aroma:"アロマ",other:"その他"};
 const serviceLabel = (svcs)=>(svcs||[]).map(s=>svcMap[s]||s).join("・");
@@ -270,6 +291,41 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
         const extra=Math.ceil((dkm-15)/10)*1000*2;
         breakdown.push({label:`🚗 遠距離加算（片道${dkm}km×往復）`,amount:extra}); total+=extra;
       }
+    }
+  }
+
+  // でこぼこhouse
+  if(services.includes("deco_house")){
+    const decoMins=serviceMins.deco_house||{};
+    // 余白プラン
+    const yohakuPlan=DECO_YOHAKU.find(p=>decoMins[p.key]);
+    if(yohakuPlan){
+      breakdown.push({label:`🏡 余白プラン・${yohakuPlan.label}`,amount:yohakuPlan.price}); total+=yohakuPlan.price;
+    }
+    // 通常プラン
+    const normalPlan=DECO_NORMAL.find(p=>decoMins[p.key]);
+    if(normalPlan){
+      breakdown.push({label:`🏡 通常プラン・${normalPlan.label}`,amount:normalPlan.price}); total+=normalPlan.price;
+      // 延長
+      const ext=parseInt(decoMins.extension)||0;
+      if(ext>0){
+        const extFee=ext*2200;
+        breakdown.push({label:`🏡 延長 ${ext}時間`,amount:extFee}); total+=extFee;
+      }
+    }
+    // 食事代
+    if(decoMins.meal){
+      breakdown.push({label:"🍽 食事代",amount:700}); total+=700;
+    }
+  }
+
+  // 家族加算（外出支援）
+  if((services.includes("outdoor_nocar")||services.includes("outdoor_car"))&&serviceMins.family_addon_type&&parseInt(serviceMins.family_addon_count||0)>0){
+    const addonType=FAMILY_ADDON.find(f=>f.key===serviceMins.family_addon_type);
+    const count=parseInt(serviceMins.family_addon_count)||0;
+    if(addonType&&count>0){
+      const addonFee=addonType.price*count;
+      breakdown.push({label:`👨‍👩‍👧 家族加算（${addonType.label}×${count}名）`,amount:addonFee}); total+=addonFee;
     }
   }
 
@@ -527,7 +583,11 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
     return {...f,services,serviceMins};
   });
 
-  const setSvcMin=(key,val)=>setForm(f=>({...f,serviceMins:{...f.serviceMins,[key]:val}}));
+  const setSvcMin=(key,val)=>setForm(f=>{
+    const next={...f,serviceMins:{...f.serviceMins,[key]:val}};
+    try{ localStorage.setItem(`kurashi_care_form_${client?.id}`,JSON.stringify({...next,photos:[]})); }catch(e){}
+    return next;
+  });
 
   const setOtherItem=(i,field,val)=>setForm(f=>{
     const items=[...f.otherItems];
@@ -657,6 +717,91 @@ function RecordForm({client,currentUser,staffList=[],onSave}){
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* でこぼこhouse */}
+      {form.services.includes("deco_house")&&(
+        <div style={{marginBottom:10,padding:"10px 12px",background:"#FFF8E7",borderRadius:8,border:"1px solid #F0C040"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#B07A00",marginBottom:10}}>🏡 でこぼこhouse プラン選択</div>
+          {/* 余白プラン */}
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:600,color:COLORS.muted,marginBottom:6}}>余白プラン（いずれか1つ）</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {DECO_YOHAKU.map(p=>{
+                const checked=form.serviceMins.deco_house?.[p.key]||false;
+                return(
+                  <label key={p.key} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:20,border:`1px solid ${checked?"#F0C040":COLORS.border}`,background:checked?"#FFF8E7":"white",cursor:"pointer",fontSize:12}}>
+                    <input type="checkbox" checked={checked} onChange={()=>setSvcMin("deco_house",{...(form.serviceMins.deco_house||{}),
+                      yohaku_basic:false,yohaku_standard:false,yohaku_relax:false,[p.key]:!checked})}
+                      style={{accentColor:"#B07A00"}}/>{p.label} {p.price.toLocaleString()}円
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          {/* 通常プラン */}
+          <div style={{marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:600,color:COLORS.muted,marginBottom:6}}>通常プラン（いずれか1つ）</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+              {DECO_NORMAL.map(p=>{
+                const checked=form.serviceMins.deco_house?.[p.key]||false;
+                return(
+                  <label key={p.key} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:20,border:`1px solid ${checked?"#F0C040":COLORS.border}`,background:checked?"#FFF8E7":"white",cursor:"pointer",fontSize:12}}>
+                    <input type="checkbox" checked={checked} onChange={()=>setSvcMin("deco_house",{...(form.serviceMins.deco_house||{}),
+                      normal_basic:false,normal_6h:false,normal_8h:false,normal_eve:false,[p.key]:!checked})}
+                      style={{accentColor:"#B07A00"}}/>{p.label} {p.price.toLocaleString()}円
+                  </label>
+                );
+              })}
+            </div>
+            {/* 延長（通常プラン選択時のみ） */}
+            {DECO_NORMAL.some(p=>form.serviceMins.deco_house?.[p.key])&&(
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <label style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>延長時間（1時間2,200円）</label>
+                <input style={{...S.input,width:70}} type="number" min="0" placeholder="0" value={form.serviceMins.deco_house?.extension||""} onChange={e=>setSvcMin("deco_house",{...(form.serviceMins.deco_house||{}),extension:e.target.value})}/>
+                <span style={{fontSize:11,color:COLORS.muted}}>時間</span>
+              </div>
+            )}
+            {/* 食事代 */}
+            <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:12}}>
+              <input type="checkbox" checked={form.serviceMins.deco_house?.meal||false} onChange={e=>setSvcMin("deco_house",{...(form.serviceMins.deco_house||{}),meal:e.target.checked})} style={{width:15,height:15,accentColor:"#B07A00"}}/>
+              🍽 食事代 700円
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* 家族加算（外出支援選択時） */}
+      {(form.services.includes("outdoor_nocar")||form.services.includes("outdoor_car"))&&(
+        <div style={{marginBottom:10,padding:"10px 12px",background:COLORS.purpleLight,borderRadius:8,border:`1px solid ${COLORS.purple}`}}>
+          <div style={{fontSize:12,fontWeight:700,color:COLORS.purple,marginBottom:8}}>👨‍👩‍👧 家族加算（複数名支援の場合）</div>
+          <div style={{marginBottom:8}}>
+            <div style={{fontSize:11,color:COLORS.muted,marginBottom:5}}>加算タイプ</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[{key:"",label:"なし"},...FAMILY_ADDON].map(f=>{
+                const checked=(form.serviceMins.family_addon_type||"")===(f.key);
+                return(
+                  <label key={f.key} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:20,border:`1px solid ${checked?COLORS.purple:COLORS.border}`,background:checked?COLORS.purpleLight:"white",cursor:"pointer",fontSize:12}}>
+                    <input type="radio" name="family_addon" checked={checked} onChange={()=>setSvcMin("family_addon_type",f.key)} style={{accentColor:COLORS.purple}}/>
+                    {f.label}{f.price?` ${f.price.toLocaleString()}円/名`:""}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          {form.serviceMins.family_addon_type&&(
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <label style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>加算人数</label>
+              <input style={{...S.input,width:70}} type="number" min="1" max="5" placeholder="1" value={form.serviceMins.family_addon_count||""} onChange={e=>setSvcMin("family_addon_count",e.target.value)}/>
+              <span style={{fontSize:11,color:COLORS.muted}}>名</span>
+              {form.serviceMins.family_addon_count&&form.serviceMins.family_addon_type&&(()=>{
+                const t=FAMILY_ADDON.find(f=>f.key===form.serviceMins.family_addon_type);
+                const n=parseInt(form.serviceMins.family_addon_count)||0;
+                return t&&n>0?<span style={{fontSize:12,color:COLORS.purple,fontWeight:600}}>+{(t.price*n).toLocaleString()}円</span>:null;
+              })()}
+            </div>
+          )}
         </div>
       )}
 
@@ -846,8 +991,17 @@ function RecordList({records, currentUser, client, onUpdateRecord, onDeleteRecor
                 </div>
                 <div style={{fontSize:11,color:COLORS.muted,marginBottom:2}}>担当：{r.staff}　{r.entryTime}〜{r.exitTime||"—"}</div>
                 {r.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:2}}>{serviceLabel(r.services)}{r.carKm?`　🚗 ${r.carKm}km`:""}</div>}
-                {r.paymentMethod&&<div style={{fontSize:10,color:COLORS.muted,marginBottom:2}}>{paymentLabel(r.paymentMethod)}</div>}
-                {r.fee&&<div style={{fontSize:12,color:COLORS.gold,fontWeight:700,marginBottom:2}}>💴 {r.fee.total.toLocaleString()}円</div>}
+                {r.paymentMethod&&(
+            <div style={{fontSize:11,marginBottom:2,fontWeight:(r.paymentMethod==="day_cash")?"700":"400",color:(r.paymentMethod==="day_cash")?COLORS.red:COLORS.muted,background:(r.paymentMethod==="day_cash")?"#FFF0F0":"transparent",borderRadius:(r.paymentMethod==="day_cash")?6:0,padding:(r.paymentMethod==="day_cash")?"2px 7px":"0",display:"inline-block"}}>
+              {paymentLabel(r.paymentMethod)}{r.paymentMethod==="day_cash"&&" 💴"}
+            </div>
+          )}
+                {r.fee&&r.fee.total>0&&(
+            <div style={{fontSize:13,fontWeight:700,marginBottom:2,color:r.paymentMethod==="day_cash"?COLORS.red:COLORS.gold}}>
+              💴 {r.fee.total.toLocaleString()}円
+              {r.paymentMethod==="day_cash"&&<span style={{fontSize:10,marginLeft:6,background:COLORS.red,color:"white",borderRadius:4,padding:"1px 5px"}}>現金当日</span>}
+            </div>
+          )}
                 {r.memo&&<div style={{fontSize:12,color:COLORS.charcoal,lineHeight:1.6}}>{r.memo}</div>}
                 <PhotoGrid photos={r.photos} compact={true}/>
               </div>
