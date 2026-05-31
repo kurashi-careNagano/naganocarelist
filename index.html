@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>暮らしのケア記録</title>
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="ケア記録" />
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -443,6 +445,10 @@ function LoginScreen({onLogin, staffList}){
               <button style={{...S.btn("outline"),width:"100%"}} onClick={()=>setMode("login")}>ログイン画面に戻る</button>
             </div>
           )}
+          <div style={{textAlign:"center",marginTop:24,paddingTop:16,borderTop:`1px solid ${COLORS.border}`}}>
+            <div style={{fontSize:11,color:COLORS.muted,letterSpacing:"0.05em",marginBottom:2}}>暮らしのケアサロン</div>
+            <div style={{fontSize:17,fontWeight:700,color:COLORS.sageDark,letterSpacing:"0.1em"}}>でこぼこ</div>
+          </div>
         </div>
       </div>
     );
@@ -462,6 +468,10 @@ function LoginScreen({onLogin, staffList}){
           {err&&<div style={{fontSize:11,color:COLORS.red,marginBottom:9}}>{err}</div>}
           <button style={{...S.btn("primary"),width:"100%",padding:"10px",marginBottom:10}} onClick={handle} disabled={checking}>{checking?"確認中...":"ログイン"}</button>
           <button style={{...S.btn("outline"),width:"100%"}} onClick={()=>setMode("register")}>新規スタッフ登録はこちら</button>
+        </div>
+        <div style={{textAlign:"center",marginTop:24,paddingTop:16,borderTop:`1px solid ${COLORS.border}`}}>
+          <div style={{fontSize:11,color:COLORS.muted,letterSpacing:"0.05em",marginBottom:2}}>暮らしのケアサロン</div>
+          <div style={{fontSize:17,fontWeight:700,color:COLORS.sageDark,letterSpacing:"0.1em"}}>でこぼこ</div>
         </div>
       </div>
     </div>
