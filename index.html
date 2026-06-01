@@ -1204,7 +1204,7 @@ function expandRecurring(schedules, year, month){
       result.push(s);
     } else {
       // 定期：指定曜日の全日程を展開
-      const targetDow=parseInt(s.recurringDay)||1;
+      const targetDow=s.recurringDay!==undefined?parseInt(s.recurringDay):1;
       for(let d=1;d<=daysInMonth;d++){
         const dateStr=toDS(year,month,d);
         const dow=new Date(year,month,d).getDay();
