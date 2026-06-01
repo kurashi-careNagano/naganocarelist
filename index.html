@@ -1194,6 +1194,135 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
   );
 }
 
+// ========== RECURRING DAY EDITOR ==========
+function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setAssignStaff, staffList, onEditSchedule, onDeleteSchedule}){
+  const key=`${s.id}_${s.date}`;
+  // overrideはその日だけの変更データ
+  const [override,setOverride]=useState(null);
+  const [editingTime,setEditingTime]=useState(false);
+  const [editingDate,setEditingDate]=useState(false);
+  const [tmpStart,setTmpStart]=useState(s.startTime||"");
+  const [tmpEnd,setTmpEnd]=useState(s.endTime||"");
+  const [tmpDate,setTmpDate]=useState(selDateStr);
+  const [confirmed,setConfirmed]=useState(s.confirmedDates?.[selDateStr]||false);
+
+  // Firebaseからその日のoverride読み込み
+  useEffect(()=>{
+    if(!s.isRecurringInstance) return;
+    db.collection("schedules").doc(String(s.id)).collection("overrides").doc(selDateStr).get()
+      .then(doc=>{ if(doc.exists){ setOverride(doc.data()); if(doc.data().startTime) setTmpStart(doc.data().startTime); if(doc.data().endTime) setTmpEnd(doc.data().endTime); if(doc.data().confirmed) setConfirmed(true); }})
+      .catch(()=>{});
+  },[s.id, selDateStr]);
+
+  const displayStart=override?.startTime||s.startTime||"";
+  const displayEnd=override?.endTime||s.endTime||"";
+  const displayStaff=assignStaff[key]||override?.staff||s.staff||"";
+
+  const saveOverride=async(data)=>{
+    const merged={...(override||{}), ...data, date:selDateStr};
+    setOverride(merged);
+    try{ await db.collection("schedules").doc(String(s.id)).collection("overrides").doc(selDateStr).set(merged,{merge:true}); }
+    catch(e){ console.error(e); }
+  };
+
+  return(
+    <div style={{...S.listItem, background:s.isRecurringInstance?"#F0F7F3":"transparent", borderRadius:8, padding:"10px 8px", marginBottom:4}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
+        <div style={{flex:1}}>
+          {/* 時間表示・編集 */}
+          <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5,flexWrap:"wrap"}}>
+            {editingTime?(
+              <div style={{display:"flex",flexDirection:"column",gap:6,background:COLORS.blueLight,borderRadius:8,padding:"8px 10px",marginBottom:4}}>
+                <div style={{fontSize:11,fontWeight:600,color:COLORS.blue,marginBottom:2}}>時間・日付を変更</div>
+                {/* 日付変更 */}
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>日付:</span>
+                  <input type="date" value={tmpDate} onChange={e=>setTmpDate(e.target.value)} style={{...S.input,fontSize:11,padding:"3px 6px",flex:1}}/>
+                  {tmpDate!==selDateStr&&<span style={{fontSize:10,color:COLORS.accent}}>変更あり</span>}
+                </div>
+                {/* 時間変更 */}
+                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                  <span style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>時間:</span>
+                  <input type="time" value={tmpStart} onChange={e=>setTmpStart(e.target.value)} style={{...S.input,width:85,fontSize:11,padding:"3px 6px"}}/>
+                  <span style={{fontSize:11}}>〜</span>
+                  <input type="time" value={tmpEnd} onChange={e=>setTmpEnd(e.target.value)} style={{...S.input,width:85,fontSize:11,padding:"3px 6px"}}/>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={async()=>{
+                    await saveOverride({startTime:tmpStart,endTime:tmpEnd,movedDate:tmpDate!==selDateStr?tmpDate:null});
+                    setEditingTime(false);
+                  }} style={{...S.btn("primary"),fontSize:10,padding:"5px 14px"}}>保存</button>
+                  <button onClick={()=>{ setEditingTime(false); setTmpDate(selDateStr); }} style={{...S.btn("outline"),fontSize:10,padding:"5px 10px"}}>キャンセル</button>
+                </div>
+              </div>
+            ):(
+              <>
+                <span style={{fontSize:13,fontWeight:700,color:(override?.startTime||override?.movedDate)?COLORS.accent:COLORS.blue}}>
+                  {override?.movedDate&&override.movedDate!==selDateStr
+                    ?<span style={{fontSize:10,color:COLORS.accent,marginRight:4}}>→{override.movedDate.slice(5).replace("-","/")}に変更</span>
+                    :null}
+                  {displayStart}{displayEnd?`〜${displayEnd}`:""}
+                  {override?.startTime&&!override?.movedDate&&<span style={{fontSize:9,color:COLORS.accent,marginLeft:3}}>時間変更済</span>}
+                </span>
+                <button onClick={()=>{setEditingTime(true);setTmpDate(override?.movedDate||selDateStr);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:COLORS.blue}}>✏️</button>
+              </>
+            )}
+            <span style={{fontSize:13,fontWeight:700}}>{s.clientName}</span>
+            {s.isRecurringInstance&&<span style={S.badge(confirmed?COLORS.green:COLORS.blue)}>{confirmed?"✓ 確定":"🔁 定期"}</span>}
+            {!s.isRecurringInstance&&<span style={S.badge(s.confirmed?COLORS.green:COLORS.gold)}>{s.confirmed?"確定":"未確定"}</span>}
+          </div>
+
+          {s.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:5}}>{serviceLabel(s.services)}</div>}
+
+          {/* 担当スタッフ */}
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+            <span style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>担当:</span>
+            <select value={displayStaff} onChange={async e=>{
+              const newStaff=e.target.value;
+              setAssignStaff(prev=>({...prev,[key]:newStaff}));
+              if(s.isRecurringInstance){
+                await saveOverride({staff:newStaff});
+              } else {
+                try{ await db.collection("schedules").doc(String(s.id)).update({staff:newStaff}); }catch(e){}
+              }
+            }} style={{...S.input,fontSize:11,padding:"4px 8px",flex:1}}>
+              <option value="">未設定</option>
+              {staffList.filter(st=>st.role!=="family"&&st.status!=="pending").map(st=>(
+                <option key={st.id} value={st.name}>{st.name}（{getRoleLabel(st.role)}）</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 確定ボタン（定期の場合はその日だけ確定） */}
+          {!confirmed&&(
+            <button onClick={async()=>{
+              setConfirmed(true);
+              await saveOverride({confirmed:true, staff:displayStaff, startTime:tmpStart, endTime:tmpEnd});
+            }} style={{...S.btn("green"),fontSize:11,padding:"5px 14px"}}>✓ この日を確定する</button>
+          )}
+          {confirmed&&<div style={{fontSize:11,color:COLORS.green,fontWeight:600}}>✓ 確定済み</div>}
+
+          {s.note&&<div style={{fontSize:11,color:COLORS.muted,marginTop:3}}>{s.note}</div>}
+        </div>
+
+        {/* 削除ボタン */}
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {!s.isRecurringInstance&&(
+            <button onClick={()=>onEditSchedule&&onEditSchedule(s)} style={{...S.btn("outline"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>✏️</button>
+          )}
+          <button onClick={()=>{
+            if(s.isRecurringInstance){
+              if(window.confirm("定期設定ごと削除しますか？")) onDeleteSchedule&&onDeleteSchedule(s.id);
+            } else {
+              onDeleteSchedule&&onDeleteSchedule(s.id);
+            }
+          }} style={{...S.btn("danger"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>🗑</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ========== CALENDAR ==========
 // 定期予定をカレンダー表示用の日付付きスケジュールに展開
 function expandRecurring(schedules, year, month){
@@ -1274,43 +1403,18 @@ function CalendarView({allSchedules,onDayClick,staffList=[],onEditSchedule,onDel
               const key=`${s.id}_${s.date}`;
               const currentStaff=assignStaff[key]||s.staff||"";
               return(
-                <div key={idx} style={{...S.listItem,background:s.isRecurringInstance?"#F0F7F3":"transparent",borderRadius:s.isRecurringInstance?6:0,padding:"10px 0"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
-                    <div style={{flex:1}}>
-                      <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4,flexWrap:"wrap"}}>
-                        <span style={{fontSize:12,fontWeight:700,color:COLORS.blue}}>{s.startTime}{s.endTime?`〜${s.endTime}`:""}</span>
-                        <span style={{fontSize:13,fontWeight:700}}>{s.clientName}</span>
-                        {s.isRecurringInstance&&<span style={S.badge(COLORS.blue)}>🔁 定期</span>}
-                        {!s.isRecurringInstance&&<span style={S.badge(s.confirmed?COLORS.green:COLORS.gold)}>{s.confirmed?"確定":"未確定"}</span>}
-                      </div>
-                      {s.services?.length>0&&<div style={{fontSize:11,color:COLORS.sageDark,fontWeight:600,marginBottom:4}}>{serviceLabel(s.services)}</div>}
-                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:s.note?4:0}}>
-                        <span style={{fontSize:11,color:COLORS.muted,whiteSpace:"nowrap"}}>担当:</span>
-                        <select value={currentStaff} onChange={async e=>{
-                          const newStaff=e.target.value;
-                          setAssignStaff(prev=>({...prev,[key]:newStaff}));
-                          try{ await db.collection("schedules").doc(String(s.id)).update({staff:newStaff}); }catch(e){}
-                        }} style={{...S.input,fontSize:11,padding:"4px 8px",flex:1}}>
-                          <option value="">未設定</option>
-                          {staffList.filter(st=>st.role!=="family"&&st.status!=="pending").map(st=>(
-                            <option key={st.id} value={st.name}>{st.name}（{getRoleLabel(st.role)}）</option>
-                          ))}
-                        </select>
-                      </div>
-                      {s.note&&<div style={{fontSize:11,color:COLORS.muted}}>{s.note}</div>}
-                    </div>
-                    {/* 編集・削除ボタン（定期インスタンスは削除のみ） */}
-                    {!s.isRecurringInstance&&(
-                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                        <button onClick={()=>onEditSchedule&&onEditSchedule(s)} style={{...S.btn("outline"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>✏️ 編集</button>
-                        <button onClick={()=>onDeleteSchedule&&onDeleteSchedule(s.id)} style={{...S.btn("danger"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>🗑 削除</button>
-                      </div>
-                    )}
-                    {s.isRecurringInstance&&(
-                      <button onClick={()=>{ if(window.confirm("定期設定ごと削除しますか？")) onDeleteSchedule&&onDeleteSchedule(s.id); }} style={{...S.btn("danger"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>🗑 削除</button>
-                    )}
-                  </div>
-                </div>
+                <RecurringDayEditor
+                  key={idx}
+                  s={s}
+                  idx={idx}
+                  selDateStr={selDateStr}
+                  currentStaff={currentStaff}
+                  assignStaff={assignStaff}
+                  setAssignStaff={setAssignStaff}
+                  staffList={staffList}
+                  onEditSchedule={onEditSchedule}
+                  onDeleteSchedule={onDeleteSchedule}
+                />
               );
             })
           }
