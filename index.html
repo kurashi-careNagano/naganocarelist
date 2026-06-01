@@ -1195,24 +1195,25 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
 }
 
 // ========== RECURRING DAY EDITOR ==========
-function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setAssignStaff, staffList, onEditSchedule, onDeleteSchedule}){
+function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setAssignStaff, staffList, onEditSchedule, onDeleteSchedule, existingOverride, onOverrideSaved}){
   const key=`${s.id}_${s.date}`;
   // overrideはその日だけの変更データ
-  const [override,setOverride]=useState(null);
+  const [override,setOverride]=useState(existingOverride||null);
   const [editingTime,setEditingTime]=useState(false);
-  const [editingDate,setEditingDate]=useState(false);
-  const [tmpStart,setTmpStart]=useState(s.startTime||"");
-  const [tmpEnd,setTmpEnd]=useState(s.endTime||"");
-  const [tmpDate,setTmpDate]=useState(selDateStr);
-  const [confirmed,setConfirmed]=useState(s.confirmedDates?.[selDateStr]||false);
+  const [tmpStart,setTmpStart]=useState(existingOverride?.startTime||s.startTime||"");
+  const [tmpEnd,setTmpEnd]=useState(existingOverride?.endTime||s.endTime||"");
+  const [tmpDate,setTmpDate]=useState(existingOverride?.movedDate||selDateStr);
+  const [confirmed,setConfirmed]=useState(existingOverride?.confirmed||false);
 
-  // Firebaseからその日のoverride読み込み
   useEffect(()=>{
-    if(!s.isRecurringInstance) return;
-    db.collection("schedules").doc(String(s.id)).collection("overrides").doc(selDateStr).get()
-      .then(doc=>{ if(doc.exists){ setOverride(doc.data()); if(doc.data().startTime) setTmpStart(doc.data().startTime); if(doc.data().endTime) setTmpEnd(doc.data().endTime); if(doc.data().confirmed) setConfirmed(true); }})
-      .catch(()=>{});
-  },[s.id, selDateStr]);
+    if(existingOverride){
+      setOverride(existingOverride);
+      if(existingOverride.startTime) setTmpStart(existingOverride.startTime);
+      if(existingOverride.endTime) setTmpEnd(existingOverride.endTime);
+      if(existingOverride.movedDate) setTmpDate(existingOverride.movedDate);
+      if(existingOverride.confirmed) setConfirmed(true);
+    }
+  },[existingOverride]);
 
   const displayStart=override?.startTime||s.startTime||"";
   const displayEnd=override?.endTime||s.endTime||"";
@@ -1221,6 +1222,7 @@ function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setA
   const saveOverride=async(data)=>{
     const merged={...(override||{}), ...data, date:selDateStr};
     setOverride(merged);
+    onOverrideSaved&&onOverrideSaved(`${s.id}_${selDateStr}`, merged);
     try{ await db.collection("schedules").doc(String(s.id)).collection("overrides").doc(selDateStr).set(merged,{merge:true}); }
     catch(e){ console.error(e); }
   };
@@ -1325,28 +1327,54 @@ function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setA
 
 // ========== CALENDAR ==========
 // 定期予定をカレンダー表示用の日付付きスケジュールに展開
-function expandRecurring(schedules, year, month){
+function expandRecurring(schedules, year, month, overrides={}){
   const result=[];
   const daysInMonth=getDays(year,month);
   schedules.forEach(s=>{
     if(!s.recurring){
       result.push(s);
     } else {
-      // 定期：指定曜日の全日程を展開
       const targetDow=s.recurringDay!==undefined?parseInt(s.recurringDay):1;
       for(let d=1;d<=daysInMonth;d++){
         const dateStr=toDS(year,month,d);
         const dow=new Date(year,month,d).getDay();
         if(dow===targetDow){
+          // このdateStrのoverride確認
+          const ov=overrides[`${s.id}_${dateStr}`];
+          // 日付変更されていたら元の日は非表示
+          if(ov?.movedDate && ov.movedDate!==dateStr) continue;
           result.push({
             ...s,
             date:dateStr,
-            startTime:s.recurringTime||s.startTime,
-            endTime:s.recurringEndTime||s.endTime,
+            startTime:ov?.startTime||s.recurringTime||s.startTime,
+            endTime:ov?.endTime||s.recurringEndTime||s.endTime,
+            staff:ov?.staff||s.staff,
+            confirmed:ov?.confirmed||false,
             isRecurringInstance:true,
+            hasOverride:!!ov,
           });
         }
       }
+      // 日付変更された分を追加（別日に移動した予定）
+      Object.entries(overrides).forEach(([key,ov])=>{
+        if(!key.startsWith(`${s.id}_`)) return;
+        if(!ov.movedDate) return;
+        const movedYear=parseInt(ov.movedDate.slice(0,4));
+        const movedMonth=parseInt(ov.movedDate.slice(5,7))-1;
+        if(movedYear===year&&movedMonth===month){
+          result.push({
+            ...s,
+            date:ov.movedDate,
+            startTime:ov.startTime||s.recurringTime||s.startTime,
+            endTime:ov.endTime||s.recurringEndTime||s.endTime,
+            staff:ov.staff||s.staff,
+            confirmed:ov.confirmed||false,
+            isRecurringInstance:true,
+            hasOverride:true,
+            movedFrom:key.replace(`${s.id}_`,""),
+          });
+        }
+      });
     }
   });
   return result;
@@ -1355,13 +1383,29 @@ function expandRecurring(schedules, year, month){
 function CalendarView({allSchedules,onDayClick,staffList=[],onEditSchedule,onDeleteSchedule,currentUser}){
   const today=new Date();
   const [vY,setVY]=useState(today.getFullYear()),[vM,setVM]=useState(today.getMonth()),[selDay,setSelDay]=useState(null);
-  const [assignStaff,setAssignStaff]=useState({}); // {schedId_date: staffName}
+  const [assignStaff,setAssignStaff]=useState({});
+  const [overrides,setOverrides]=useState({}); // {schedId_date: overrideData}
   const days=getDays(vY,vM),first=getFirst(vY,vM),todayStr=toDS(today.getFullYear(),today.getMonth(),today.getDate());
   const prev=()=>{if(vM===0){setVY(y=>y-1);setVM(11);}else setVM(m=>m-1);setSelDay(null);};
   const next=()=>{if(vM===11){setVY(y=>y+1);setVM(0);}else setVM(m=>m+1);setSelDay(null);};
 
-  // 定期予定を展開してカレンダー用データを作成
-  const expandedSchedules=expandRecurring(allSchedules, vY, vM);
+  // 定期予定のoverridesをFirebaseから読み込む
+  useEffect(()=>{
+    const recurringSchedules=allSchedules.filter(s=>s.recurring);
+    if(recurringSchedules.length===0) return;
+    const newOverrides={};
+    Promise.all(recurringSchedules.map(async s=>{
+      try{
+        const snap=await db.collection("schedules").doc(String(s.id)).collection("overrides").get();
+        snap.docs.forEach(doc=>{
+          newOverrides[`${s.id}_${doc.id}`]=doc.data();
+        });
+      }catch(e){}
+    })).then(()=>setOverrides(newOverrides));
+  },[allSchedules, vY, vM]);
+
+  // 定期予定を展開してカレンダー用データを作成（overrides反映）
+  const expandedSchedules=expandRecurring(allSchedules, vY, vM, overrides);
   const byDate={};
   expandedSchedules.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
   const selDateStr=selDay?toDS(vY,vM,selDay):null;
@@ -1404,16 +1448,18 @@ function CalendarView({allSchedules,onDayClick,staffList=[],onEditSchedule,onDel
               const currentStaff=assignStaff[key]||s.staff||"";
               return(
                 <RecurringDayEditor
-                  key={idx}
+                  key={`${s.id}_${s.date}_${idx}`}
                   s={s}
                   idx={idx}
-                  selDateStr={selDateStr}
+                  selDateStr={s.date}
                   currentStaff={currentStaff}
                   assignStaff={assignStaff}
                   setAssignStaff={setAssignStaff}
                   staffList={staffList}
                   onEditSchedule={onEditSchedule}
                   onDeleteSchedule={onDeleteSchedule}
+                  existingOverride={overrides[`${s.id}_${s.date}`]}
+                  onOverrideSaved={(key,data)=>setOverrides(prev=>({...prev,[key]:data}))}
                 />
               );
             })
