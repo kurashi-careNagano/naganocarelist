@@ -2163,7 +2163,9 @@ function App(){
   const [showAddClient,setShowAddClient]=useState(false);
   const [showSchedModal,setShowSchedModal]=useState(false);
   const [schedDefaultDate,setSchedDefaultDate]=useState(null);
-  const [newClient,setNewClient]=useState({name:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:"",distanceKm:"",showFeeToFamily:false});
+  const [newClient,setNewClient]=useState({name:"",kana:"",age:"",address:"",diagnosis:"",emergency:"",life:"",notes:"",paymentMethod:"",distanceKm:"",showFeeToFamily:false});
+  const [clientSearch,setClientSearch]=useState("");
+  const [kanaFilter,setKanaFilter]=useState(null);
   const [editingSchedule,setEditingSchedule]=useState(null);
 
   if(!currentUser) return <LoginScreen onLogin={setCurrentUser} staffList={staffList}/>;
@@ -2180,12 +2182,33 @@ function App(){
   const selected=clients.find(c=>c.id===selectedId);
 
   // スタッフの場合は担当利用者のみ
-  const visibleClients = canSeeAllClients(currentUser.role)
+  const baseClients = canSeeAllClients(currentUser.role)
     ? clients
     : clients.filter(c=>{
         const me=staffList.find(s=>s.id===currentUser.id);
         return (me?.assignedClientIds||[]).includes(c.id);
       });
+
+  // かな行マップ
+  const KANA_ROWS={"あ":["あ","い","う","え","お"],"か":["か","き","く","け","こ"],"さ":["さ","し","す","せ","そ"],"た":["た","ち","つ","て","と"],"な":["な","に","ぬ","ね","の"],"は":["は","ひ","ふ","へ","ほ"],"ま":["ま","み","む","め","も"],"や":["や","ゆ","よ"],"ら":["ら","り","る","れ","ろ"],"わ":["わ","を","ん"]};
+
+  // 検索・かなフィルター
+  const filteredClients = baseClients.filter(c=>{
+    if(clientSearch){
+      const q=clientSearch;
+      return (c.name||"").includes(q)||(c.kana||"").includes(q);
+    }
+    if(kanaFilter){
+      const first=(c.kana||c.name||"")[0]||"";
+      return (KANA_ROWS[kanaFilter]||[kanaFilter]).some(k=>first===k);
+    }
+    return true;
+  });
+
+  // あいうえお順でソート
+  const visibleClients = [...filteredClients].sort((a,b)=>
+    (a.kana||a.name||"").localeCompare(b.kana||b.name||"","ja")
+  );
 
   const handleEditSchedule=(schedule)=>{
     setEditingSchedule(schedule);
@@ -2341,9 +2364,14 @@ function App(){
             <div style={S.card}>
               <div style={S.title}>👤 新しい利用者を登録</div>
               <div style={S.row}>
-                <div style={S.col}><label style={S.label}>氏名 *</label><input style={S.input} placeholder="山田 花子" value={newClient.name} onChange={e=>setNC("name",e.target.value)}/></div>
+                <div style={S.col}>
+                <label style={S.label}>氏名 *</label>
+                <input style={S.input} placeholder="山田 花子" value={newClient.name} onChange={e=>setNC("name",e.target.value)}/>
+                <input style={{...S.input,marginTop:4,fontSize:11}} placeholder="ふりがな（やまだ はなこ）" value={newClient.nameKana||""} onChange={e=>setNC("nameKana",e.target.value)}/>
+              </div>
                 <div style={{width:66}}><label style={S.label}>年齢</label><input style={S.input} placeholder="82" value={newClient.age} onChange={e=>setNC("age",e.target.value)}/></div>
               </div>
+              <div style={{marginBottom:8}}><label style={S.label}>ふりがな（並び替えに使用）</label><input style={S.input} placeholder="やまだ はなこ" value={newClient.kana||""} onChange={e=>setNC("kana",e.target.value)}/></div>
               <div style={{marginBottom:8}}><label style={S.label}>住所</label><input style={S.input} value={newClient.address} onChange={e=>setNC("address",e.target.value)}/></div>
               <div style={{marginBottom:8}}><label style={S.label}>既往歴・診断名</label><input style={S.input} value={newClient.diagnosis} onChange={e=>setNC("diagnosis",e.target.value)}/></div>
               <div style={{marginBottom:8}}><label style={S.label}>緊急連絡先</label><input style={S.input} placeholder="山田 太郎（長男）090-〇〇〇〇" value={newClient.emergency} onChange={e=>setNC("emergency",e.target.value)}/></div>
@@ -2375,18 +2403,36 @@ function App(){
             </div>
           )}
           <UpcomingWidget allSchedules={allSchedules}/>
-          {visibleClients.length===0?(
+          {/* 検索バー */}
+          <div style={{marginBottom:8,position:"relative"}}>
+            <input style={{...S.input,paddingLeft:32,fontSize:13}} placeholder="利用者を検索（名前・ふりがな）" value={clientSearch} onChange={e=>setClientSearch(e.target.value)}/>
+            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:13,color:COLORS.muted}}>🔍</span>
+            {clientSearch&&<button onClick={()=>setClientSearch("")} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:COLORS.muted}}>×</button>}
+          </div>
+          {/* あいうえお行フィルター */}
+          <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:10}}>
+            {["全","あ","か","さ","た","な","は","ま","や","ら","わ"].map(k=>{
+              const active=(k==="全"&&!kanaFilter)||(kanaFilter===k);
+              return(
+                <button key={k} onClick={()=>setKanaFilter(k==="全"?null:kanaFilter===k?null:k)}
+                  style={{padding:"4px 9px",borderRadius:16,border:`1px solid ${active?COLORS.sageDark:COLORS.border}`,background:active?COLORS.sageDark:"white",color:active?"white":COLORS.charcoal,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  {k}
+                </button>
+              );
+            })}
+          </div>
+          {filteredClients.length===0?(
             <div style={{...S.card,color:COLORS.muted,textAlign:"center",padding:24,fontSize:13}}>
-              {currentUser.role==="staff"?"担当利用者が設定されていません。\n管理者にご連絡ください。":"利用者が登録されていません"}
+              {clientSearch||kanaFilter?"該当する利用者が見つかりません":currentUser.role==="staff"?"担当利用者が設定されていません。管理者にご連絡ください。":"利用者が登録されていません"}
             </div>
           ):(
             <>
               <div style={{fontSize:11,color:COLORS.muted,marginBottom:8}}>
-                {currentUser.role==="staff"?"担当利用者一覧":"利用者一覧"} — タップして記録を開始
+                {filteredClients.length}名 {currentUser.role==="staff"?"（担当）":""} — タップして記録を開始
               </div>
               <div style={isPC?{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}:{}}>
-              {visibleClients.map(c=><ClientCard key={c.id} client={c} onClick={()=>setSelectedId(c.id)} isPC={isPC}/>)}
-            </div>
+                {filteredClients.map(c=><ClientCard key={c.id} client={c} onClick={()=>setSelectedId(c.id)} isPC={isPC}/>)}
+              </div>
             </>
           )}
         </div>
