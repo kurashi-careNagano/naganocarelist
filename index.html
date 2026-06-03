@@ -1066,7 +1066,10 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
     name:client.name||"", age:client.age||"", address:client.address||"",
     diagnosis:client.diagnosis||"", emergency:client.emergency||"",
     life:client.life||"", notes:client.notes||"",
-    paymentMethod:client.paymentMethod||""
+    paymentMethod:client.paymentMethod||"",
+    kana:client.kana||"",
+    distanceKm:client.distanceKm||"",
+    showFeeToFamily:client.showFeeToFamily||false
   });
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
@@ -1101,6 +1104,7 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
             <div style={S.col}><label style={S.label}>氏名</label><input style={S.input} value={form.name} onChange={e=>set("name",e.target.value)}/></div>
             <div style={{width:70}}><label style={S.label}>年齢</label><input style={S.input} value={form.age} onChange={e=>set("age",e.target.value)}/></div>
           </div>
+          <div style={{marginBottom:8}}><label style={S.label}>ふりがな</label><input style={S.input} placeholder="やまだ はなこ" value={form.kana||""} onChange={e=>set("kana",e.target.value)}/></div>
           <div style={{marginBottom:8}}><label style={S.label}>住所</label><input style={S.input} value={form.address} onChange={e=>set("address",e.target.value)}/></div>
           <div style={{marginBottom:8}}><label style={S.label}>既往歴・診断名</label><input style={S.input} value={form.diagnosis} onChange={e=>set("diagnosis",e.target.value)}/></div>
           <div style={{marginBottom:8}}><label style={S.label}>緊急連絡先</label><input style={S.input} value={form.emergency} onChange={e=>set("emergency",e.target.value)}/></div>
@@ -1159,7 +1163,11 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
       <div style={S.card}>
         <div style={S.title}>🏥 基本情報</div>
         <div style={S.row}>
-          <div style={S.col}><label style={S.label}>氏名</label><div style={{fontSize:isPC?15:14,fontWeight:700}}>{client.name}</div></div>
+          <div style={S.col}>
+            <label style={S.label}>氏名</label>
+            <div style={{fontSize:isPC?15:14,fontWeight:700}}>{client.name}</div>
+            {client.kana&&<div style={{fontSize:11,color:COLORS.muted}}>{client.kana}</div>}
+          </div>
           <div style={S.col}><label style={S.label}>年齢</label><div style={{fontSize:isPC?15:14}}>{client.age}歳</div></div>
         </div>
         <hr style={S.divider}/>
