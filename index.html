@@ -341,6 +341,54 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
     }
   });
 
+  // 時間外加算（ガソリン代・遠距離加算・その他・でこぼこhouse・ケアリストプラン以外に適用）
+  if(entryTime&&exitTime){
+    const [eh,em]=entryTime.split(":").map(Number);
+    const [xh,xm]=exitTime.split(":").map(Number);
+    const startMin=eh*60+em;
+    const endMin=xh*60+xm;
+
+    // 時間帯ごとの加算率を計算
+    // 6-8時・18-20時: 20%アップ、20-翌6時: 40%アップ
+    const calcOvertimeRate=(startM, endM)=>{
+      // 翌日をまたぐ場合
+      const end=endM<startM?endM+24*60:endM;
+      let zone20=0, zone40=0, zoneNormal=0;
+      for(let m=startM;m<end;m++){
+        const h=(m/60|0)%24;
+        if((h>=6&&h<8)||(h>=18&&h<20)) zone20++;
+        else if(h>=20||h<6) zone40++;
+        else zoneNormal++;
+      }
+      const totalMins=zone20+zone40+zoneNormal;
+      if(totalMins===0) return {rate:0,label:null};
+      // 加重平均で加算率を計算
+      const extraRate=(zone20*0.2+zone40*0.4)/totalMins;
+      if(extraRate<=0) return {rate:0,label:null};
+      let label="";
+      if(zone40>0&&zone20>0) label=`時間外加算（早朝/夜間帯含む）`;
+      else if(zone40>0) label=`時間外加算（夜間・深夜帯 +40%）`;
+      else label=`時間外加算（早朝・夕方帯 +20%）`;
+      return {rate:extraRate, label, zone20, zone40};
+    };
+
+    const {rate, label, zone20, zone40}=calcOvertimeRate(startMin, endMin);
+    if(rate>0&&label){
+      // 加算対象：ガソリン・遠距離・その他・でこぼこ・ケアリスト以外の小計
+      const baseTotal=breakdown
+        .filter(b=>!b.label.includes("ガソリン")&&!b.label.includes("遠距離")&&!b.label.includes("📌")&&!b.label.includes("🏡")&&!b.label.includes("✨"))
+        .reduce((s,b)=>s+b.amount,0);
+      const overtimeFee=Math.round(baseTotal*rate);
+      if(overtimeFee>0){
+        const details=[];
+        if(zone20>0) details.push(`早朝/夕方${zone20}分×20%`);
+        if(zone40>0) details.push(`夜間/深夜${zone40}分×40%`);
+        breakdown.push({label:`🌙 ${label}（${details.join("・")}）`,amount:overtimeFee});
+        total+=overtimeFee;
+      }
+    }
+  }
+
   return {breakdown,total,totalMin,totalMin15};
 }
 const getDays=(y,m)=>new Date(y,m+1,0).getDate();
