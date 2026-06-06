@@ -1368,13 +1368,28 @@ function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setA
           {!s.isRecurringInstance&&(
             <button onClick={()=>onEditSchedule&&onEditSchedule(s)} style={{...S.btn("outline"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>✏️</button>
           )}
-          <button onClick={()=>{
-            if(s.isRecurringInstance){
-              if(window.confirm("定期設定ごと削除しますか？")) onDeleteSchedule&&onDeleteSchedule(s.id);
-            } else {
-              onDeleteSchedule&&onDeleteSchedule(s.id);
-            }
-          }} style={{...S.btn("danger"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>🗑</button>
+          {s.isRecurringInstance?(
+            <>
+              {/* この日だけキャンセル */}
+              <button onClick={async()=>{
+                if(!window.confirm(`${selDateStr}の予定だけキャンセルしますか？`)) return;
+                await saveOverride({cancelled:true});
+                onOverrideSaved&&onOverrideSaved(`${s.id}_${selDateStr}`,{...(override||{}),cancelled:true,date:selDateStr});
+              }} style={{...S.btn("outline"),fontSize:9,padding:"4px 7px",whiteSpace:"nowrap",borderColor:COLORS.accent,color:COLORS.accent}}>
+                この日だけ<br/>キャンセル
+              </button>
+              {/* 定期ごと削除 */}
+              <button onClick={()=>{
+                if(window.confirm("定期設定を完全に削除しますか？
+（全ての日程が消えます）")) onDeleteSchedule&&onDeleteSchedule(s.id);
+              }} style={{...S.btn("danger"),fontSize:9,padding:"4px 7px",whiteSpace:"nowrap"}}>
+                定期ごと<br/>削除
+              </button>
+            </>
+          ):(
+            <button onClick={()=>onDeleteSchedule&&onDeleteSchedule(s.id)}
+              style={{...S.btn("danger"),fontSize:10,padding:"4px 9px",whiteSpace:"nowrap"}}>🗑</button>
+          )}
         </div>
       </div>
     </div>
@@ -1397,6 +1412,8 @@ function expandRecurring(schedules, year, month, overrides={}){
         if(dow===targetDow){
           // このdateStrのoverride確認
           const ov=overrides[`${s.id}_${dateStr}`];
+          // キャンセルされた日は非表示
+          if(ov?.cancelled) continue;
           // 日付変更されていたら元の日は非表示
           if(ov?.movedDate && ov.movedDate!==dateStr) continue;
           result.push({
