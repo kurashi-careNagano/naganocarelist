@@ -1372,7 +1372,7 @@ function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setA
             <>
               {/* この日だけキャンセル */}
               <button onClick={async()=>{
-                if(!window.confirm(`${selDateStr}の予定だけキャンセルしますか？`)) return;
+                if(!window.confirm(selDateStr+"の予定だけキャンセルしますか?")) return;
                 await saveOverride({cancelled:true});
                 onOverrideSaved&&onOverrideSaved(`${s.id}_${selDateStr}`,{...(override||{}),cancelled:true,date:selDateStr});
               }} style={{...S.btn("outline"),fontSize:9,padding:"4px 7px",whiteSpace:"nowrap",borderColor:COLORS.accent,color:COLORS.accent}}>
@@ -1380,8 +1380,7 @@ function RecurringDayEditor({s, idx, selDateStr, currentStaff, assignStaff, setA
               </button>
               {/* 定期ごと削除 */}
               <button onClick={()=>{
-                if(window.confirm("定期設定を完全に削除しますか？
-（全ての日程が消えます）")) onDeleteSchedule&&onDeleteSchedule(s.id);
+                if(window.confirm("定期設定を完全に削除しますか?(全ての日程が消えます)")) onDeleteSchedule&&onDeleteSchedule(s.id);
               }} style={{...S.btn("danger"),fontSize:9,padding:"4px 7px",whiteSpace:"nowrap"}}>
                 定期ごと<br/>削除
               </button>
