@@ -620,12 +620,140 @@ function PaymentSelector({value,onChange,name="pay"}){
   );
 }
 
+// ========== SUPPORT TIMER ==========
+function SupportTimer({form, set}){
+  const nowStr=()=>{ const n=new Date(); return `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`; };
+  const toMin=t=>{ if(!t) return 0; const [h,m]=t.split(":").map(Number); return h*60+m; };
+  const fmtMin=m=>{ const h=Math.floor(m/60); const min=m%60; return `${h>0?h+"時間":""}${min>0?min+"分":""}`; };
+
+  // 一時停止ログ: [{pausedAt, resumedAt}]
+  const pauses=form.pauseLog||[];
+  const isPaused=form.pausedAt&&!form.resumedAt;
+
+  // 実際の支援時間（一時停止時間を除く）
+  const calcActualMins=()=>{
+    if(!form.entryTime) return 0;
+    const endMin=form.exitTime?toMin(form.exitTime):toMin(nowStr());
+    const totalMin=endMin-toMin(form.entryTime);
+    const pausedMin=pauses.reduce((sum,p)=>{
+      const start=toMin(p.pausedAt);
+      const end=p.resumedAt?toMin(p.resumedAt):toMin(nowStr());
+      return sum+(end-start);
+    },0);
+    return Math.max(0,totalMin-pausedMin);
+  };
+
+  const actualMins=calcActualMins();
+
+  // 一時停止中の経過時間表示用（リアルタイムではないが十分）
+  const pausedMins=isPaused&&form.pausedAt?toMin(nowStr())-toMin(form.pausedAt):0;
+
+  return(
+    <div style={{marginBottom:12}}>
+      {/* メインボタン */}
+      <div style={S.row}>
+        <div style={S.col}>
+          <button
+            onClick={()=>{ if(!form.entryTime) set("entryTime",nowStr()); }}
+            style={{...S.btn(form.entryTime?"outline":"primary"),width:"100%",padding:"12px",fontSize:14,fontWeight:700}}
+            disabled={!!form.entryTime}
+          >
+            {form.entryTime?`✅ 支援開始 ${form.entryTime}`:"🟢 支援開始"}
+          </button>
+        </div>
+        <div style={S.col}>
+          <button
+            onClick={()=>{ if(!form.exitTime) set("exitTime",nowStr()); }}
+            style={{...S.btn(form.exitTime?"outline":"danger"),width:"100%",padding:"12px",fontSize:14,fontWeight:700}}
+            disabled={!form.entryTime||isPaused}
+          >
+            {form.exitTime?`✅ 支援終了 ${form.exitTime}`:"🔴 支援終了"}
+          </button>
+        </div>
+      </div>
+
+      {/* 一時停止・再開ボタン（支援開始後・支援終了前のみ） */}
+      {form.entryTime&&!form.exitTime&&(
+        <div style={{marginTop:6}}>
+          {!isPaused?(
+            <button
+              onClick={()=>{
+                const t=nowStr();
+                set("pausedAt",t);
+                set("pauseLog",[...pauses,{pausedAt:t,resumedAt:null}]);
+              }}
+              style={{...S.btn("outline"),width:"100%",padding:"10px",fontSize:13,fontWeight:700,borderColor:COLORS.gold,color:COLORS.gold}}
+            >
+              ⏸ 一時離席（離れる）
+            </button>
+          ):(
+            <div>
+              <div style={{textAlign:"center",fontSize:12,color:COLORS.accent,marginBottom:5,fontWeight:600}}>
+                ⏸ 離席中... {pausedMins>0?`（約${pausedMins}分）`:""}
+              </div>
+              <button
+                onClick={()=>{
+                  const t=nowStr();
+                  const updated=pauses.map((p,i)=>i===pauses.length-1?{...p,resumedAt:t}:p);
+                  set("pauseLog",updated);
+                  set("pausedAt",null);
+                  set("resumedAt",null);
+                }}
+                style={{...S.btn("primary"),width:"100%",padding:"10px",fontSize:13,fontWeight:700,background:COLORS.sageDark}}
+              >
+                ▶️ 支援再開
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 支援時間表示 */}
+      {form.entryTime&&(
+        <div style={{marginTop:7,padding:"8px 12px",background:COLORS.greenLight,borderRadius:8,border:`1px solid ${COLORS.green}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:4}}>
+            <div style={{fontSize:12,color:COLORS.green,fontWeight:700}}>
+              {form.exitTime?"支援完了":"支援中"} 実支援時間：{fmtMin(actualMins)||"0分"}
+            </div>
+            {pauses.length>0&&(
+              <div style={{fontSize:10,color:COLORS.muted}}>
+                離席{pauses.length}回・計{fmtMin(pauses.reduce((s,p)=>{
+                  const end=p.resumedAt?toMin(p.resumedAt):toMin(nowStr());
+                  return s+(end-toMin(p.pausedAt));
+                },0))}
+              </div>
+            )}
+          </div>
+          {pauses.length>0&&(
+            <div style={{marginTop:4}}>
+              {pauses.map((p,i)=>(
+                <div key={i} style={{fontSize:10,color:COLORS.muted}}>
+                  離席{i+1}: {p.pausedAt}〜{p.resumedAt||"離席中"}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 押し忘れ用手入力 */}
+      <div style={{marginTop:7,padding:"8px 10px",background:COLORS.cream,borderRadius:8}}>
+        <div style={{fontSize:10,color:COLORS.muted,marginBottom:5}}>押し忘れた場合は手入力</div>
+        <div style={S.row}>
+          <div style={S.col}><label style={S.label}>開始時刻</label><input style={S.input} type="time" value={form.entryTime} onChange={e=>set("entryTime",e.target.value)}/></div>
+          <div style={S.col}><label style={S.label}>終了時刻</label><input style={S.input} type="time" value={form.exitTime} onChange={e=>set("exitTime",e.target.value)}/></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ========== RECORD FORM ==========
 function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditing}){
   const empty={
     date:new Date().toISOString().slice(0,10),
     staff:currentUser?.name||"",
-    entryTime:"",exitTime:"",
+    entryTime:"",exitTime:"",pauseLog:[],pausedAt:null,resumedAt:null,
     condition:"良好",
     services:[],
     serviceMins:{},
@@ -723,42 +851,8 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
         <div style={S.col}><label style={S.label}>訪問日</label><input style={S.input} type="date" value={form.date} onChange={e=>set("date",e.target.value)}/></div>
         <div style={S.col}><label style={S.label}>担当者名</label><input style={S.input} value={form.staff} onChange={e=>set("staff",e.target.value)}/></div>
       </div>
-      {/* 支援開始・終了ボタン */}
-      <div style={{marginBottom:12}}>
-        <div style={S.row}>
-          <div style={S.col}>
-            <button
-              onClick={()=>{ const n=new Date(); set("entryTime",`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`); }}
-              style={{...S.btn(form.entryTime?"outline":"primary"),width:"100%",padding:"12px",fontSize:14,fontWeight:700}}
-            >
-              {form.entryTime?`✅ 支援開始 ${form.entryTime}`:"🟢 支援開始"}
-            </button>
-          </div>
-          <div style={S.col}>
-            <button
-              onClick={()=>{ const n=new Date(); set("exitTime",`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`); }}
-              style={{...S.btn(form.exitTime?"outline":"danger"),width:"100%",padding:"12px",fontSize:14,fontWeight:700}}
-              disabled={!form.entryTime}
-            >
-              {form.exitTime?`✅ 支援終了 ${form.exitTime}`:"🔴 支援終了"}
-            </button>
-          </div>
-        </div>
-        {form.entryTime&&form.exitTime&&(()=>{
-          const [eh,em]=form.entryTime.split(":").map(Number);
-          const [xh,xm]=form.exitTime.split(":").map(Number);
-          const diff=(xh*60+xm)-(eh*60+em);
-          return diff>0?<div style={{textAlign:"center",fontSize:12,color:COLORS.sageDark,fontWeight:600}}>支援時間：{Math.floor(diff/60)>0?`${Math.floor(diff/60)}時間`:""}{diff%60>0?`${diff%60}分`:""}</div>:null;
-        })()}
-        {/* 押し忘れ用手入力 */}
-        <div style={{marginTop:8,padding:"8px 10px",background:COLORS.cream,borderRadius:8}}>
-          <div style={{fontSize:10,color:COLORS.muted,marginBottom:6}}>押し忘れた場合は手入力してください</div>
-          <div style={S.row}>
-            <div style={S.col}><label style={S.label}>開始時刻</label><input style={S.input} type="time" value={form.entryTime} onChange={e=>set("entryTime",e.target.value)}/></div>
-            <div style={S.col}><label style={S.label}>終了時刻</label><input style={S.input} type="time" value={form.exitTime} onChange={e=>set("exitTime",e.target.value)}/></div>
-          </div>
-        </div>
-      </div>
+      {/* 支援開始・一時停止・終了ボタン */}
+      <SupportTimer form={form} set={set}/>
 
       <hr style={S.divider}/>
       <div style={{...S.title,fontSize:11}}>支援内容（複数可）・各支援の時間を入力</div>
