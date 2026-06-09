@@ -1210,6 +1210,7 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
     life:client.life||"", notes:client.notes||"",
     paymentMethod:client.paymentMethod||"",
     kana:client.kana||"",
+    birthday:client.birthday||"",
     distanceKm:client.distanceKm||"",
     showFeeToFamily:client.showFeeToFamily||false
   });
@@ -1247,6 +1248,24 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
             <div style={{width:70}}><label style={S.label}>年齢</label><input style={S.input} value={form.age} onChange={e=>set("age",e.target.value)}/></div>
           </div>
           <div style={{marginBottom:8}}><label style={S.label}>ふりがな</label><input style={S.input} placeholder="やまだ はなこ" value={form.kana||""} onChange={e=>set("kana",e.target.value)}/></div>
+          <div style={{marginBottom:8}}>
+            <label style={S.label}>生年月日</label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input style={{...S.input,flex:1}} type="date" value={form.birthday||""} onChange={e=>{
+                const bday=e.target.value;
+                set("birthday",bday);
+                if(bday){
+                  const today=new Date();
+                  const birth=new Date(bday);
+                  let age=today.getFullYear()-birth.getFullYear();
+                  const m=today.getMonth()-birth.getMonth();
+                  if(m<0||(m===0&&today.getDate()<birth.getDate())) age--;
+                  set("age",age);
+                }
+              }}/>
+              {form.birthday&&<span style={{fontSize:12,color:COLORS.sageDark,whiteSpace:"nowrap",fontWeight:600}}>{form.age}歳</span>}
+            </div>
+          </div>
           <div style={{marginBottom:8}}><label style={S.label}>住所</label><input style={S.input} value={form.address} onChange={e=>set("address",e.target.value)}/></div>
           <div style={{marginBottom:8}}><label style={S.label}>既往歴・診断名</label><input style={S.input} value={form.diagnosis} onChange={e=>set("diagnosis",e.target.value)}/></div>
           <div style={{marginBottom:8}}><label style={S.label}>緊急連絡先</label><input style={S.input} value={form.emergency} onChange={e=>set("emergency",e.target.value)}/></div>
@@ -1310,7 +1329,11 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
             <div style={{fontSize:isPC?15:14,fontWeight:700}}>{client.name}</div>
             {client.kana&&<div style={{fontSize:11,color:COLORS.muted}}>{client.kana}</div>}
           </div>
-          <div style={S.col}><label style={S.label}>年齢</label><div style={{fontSize:isPC?15:14}}>{client.age}歳</div></div>
+          <div style={S.col}>
+            <label style={S.label}>年齢</label>
+            <div style={{fontSize:isPC?15:14}}>{client.age}歳</div>
+            {client.birthday&&<div style={{fontSize:11,color:COLORS.muted}}>{client.birthday.replace(/-/g,"/")}生まれ</div>}
+          </div>
         </div>
         <hr style={S.divider}/>
         <div style={{marginBottom:6}}><label style={S.label}>住所</label><div style={{fontSize:isPC?14:13}}>{client.address}</div></div>
@@ -2536,7 +2559,24 @@ function App(){
                 <input style={{...S.input,marginTop:4,fontSize:11}} placeholder="ふりがな（やまだ はなこ）" value={newClient.nameKana||""} onChange={e=>setNC("nameKana",e.target.value)}/>
               </div>
                 <div style={{width:66}}><label style={S.label}>年齢</label><input style={S.input} placeholder="82" value={newClient.age} onChange={e=>setNC("age",e.target.value)}/></div>
+            </div>
+            <div style={{marginBottom:8}}>
+              <label style={S.label}>生年月日（入力で年齢自動計算）</label>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input style={{...S.input,flex:1}} type="date" value={newClient.birthday||""} onChange={e=>{
+                  const bday=e.target.value;
+                  setNC("birthday",bday);
+                  if(bday){
+                    const today=new Date(), birth=new Date(bday);
+                    let age=today.getFullYear()-birth.getFullYear();
+                    const m=today.getMonth()-birth.getMonth();
+                    if(m<0||(m===0&&today.getDate()<birth.getDate())) age--;
+                    setNC("age",age);
+                  }
+                }}/>
+                {newClient.birthday&&<span style={{fontSize:12,color:COLORS.sageDark,fontWeight:600,whiteSpace:"nowrap"}}>{newClient.age}歳</span>}
               </div>
+            </div>
               <div style={{marginBottom:8}}><label style={S.label}>ふりがな（並び替えに使用）</label><input style={S.input} placeholder="やまだ はなこ" value={newClient.kana||""} onChange={e=>setNC("kana",e.target.value)}/></div>
               <div style={{marginBottom:8}}><label style={S.label}>住所</label><input style={S.input} value={newClient.address} onChange={e=>setNC("address",e.target.value)}/></div>
               <div style={{marginBottom:8}}><label style={S.label}>既往歴・診断名</label><input style={S.input} value={newClient.diagnosis} onChange={e=>setNC("diagnosis",e.target.value)}/></div>
