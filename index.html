@@ -269,7 +269,7 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
     const mRaw=parseInt(serviceMins.aroma)||0;
     const m=round15(mRaw);
     if(m>0){
-      const aromaFee=Math.ceil(m/15)*1000;
+      const aromaFee=Math.ceil(m/15)*1200;
       breakdown.push({label:`🌸 アロマケア加算（${m}分 15分×1,200円）`,amount:aromaFee}); total+=aromaFee;
     } else {
       breakdown.push({label:"🌸 アロマケア加算（分数未入力）",amount:0});
@@ -880,7 +880,7 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
               <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"7px 10px",borderRadius:checked&&needsMins?"8px 8px 0 0":8,background:checked?"#EBF4EE":COLORS.warmWhite,border:`1px solid ${checked?COLORS.sageDark:COLORS.border}`}}>
                 <input type="checkbox" checked={checked} onChange={()=>toggleSvc(key)} style={{width:15,height:15,accentColor:COLORS.sageDark}}/>
                 <span style={{fontSize:12,fontWeight:checked?600:400,color:checked?COLORS.sageDark:COLORS.charcoal,flex:1}}>{label}</span>
-                {key==="aroma"&&checked&&<span style={{fontSize:10,color:COLORS.accent}}>15分ごと+1,000円</span>}
+                {key==="aroma"&&checked&&<span style={{fontSize:10,color:COLORS.accent}}>15分ごと+1,200円</span>}
               </label>
               {checked&&needsMins&&(
                 <div style={{padding:"8px 10px",background:"#D8EDE0",borderRadius:"0 0 8px 8px",border:`1px solid ${COLORS.sageDark}`,borderTop:"none",display:"flex",alignItems:"center",gap:8}}>
