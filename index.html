@@ -1366,7 +1366,7 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
           <label style={S.label}>🚗 送迎遠距離加算</label>
           <div style={{fontSize:isPC?14:13,color:client.distanceKm&&parseFloat(client.distanceKm)>=15?COLORS.accent:COLORS.muted}}>
             {client.distanceKm&&parseFloat(client.distanceKm)>0
-              ?`${client.distanceKm}km（${parseFloat(client.distanceKm)<15?"加算なし":parseFloat(client.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(client.distanceKm)-15)/10)*1000}円`}）`
+              ?`${client.distanceKm}km（${parseFloat(client.distanceKm)<15?"加算なし":parseFloat(client.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(client.distanceKm)-15)/10)*1200}円`}）`
               :"未設定（加算なし）"}
           </div>
         </div>
