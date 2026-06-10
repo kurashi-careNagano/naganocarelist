@@ -146,6 +146,14 @@ const SERVICE_OPTIONS = [
   {key:"other",        label:"📌 その他"},
 ];
 
+// 営業予定（料金なし）
+const EVENT_OPTIONS = [
+  {key:"deco_event",   label:"🏡 でこぼこhouse（営業）"},
+  {key:"chayu",        label:"🍵 茶友"},
+  {key:"evening_talk", label:"🌇 夕方のお話会"},
+  {key:"deco_salon",   label:"💈 でこぼこサロン"},
+];
+
 // でこぼこhouseプラン定義
 const DECO_YOHAKU = [
   {key:"yohaku_basic",    label:"ベーシック",   price:8800},
@@ -165,7 +173,7 @@ const FAMILY_ADDON = [
   {key:"normal", label:"通常加算",price:2000},
   {key:"heavy",  label:"重度加算",price:3000},
 ];
-const svcMap = {indoor:"宅内",errands:"買物代行",outdoor_nocar:"外出(車なし)",outdoor_car:"外出(車あり)",aroma:"アロマ",other:"その他"};
+const svcMap = {indoor:"宅内",errands:"買物代行",outdoor_nocar:"外出(車なし)",outdoor_car:"外出(車あり)",aroma:"アロマ",cl_plan:"CLプラン",deco_house:"でこぼこhouse",deco_event:"でこぼこhouse(営業)",chayu:"茶友",evening_talk:"夕方のお話会",deco_salon:"でこぼこサロン",other:"その他"};
 const serviceLabel = (svcs)=>(svcs||[]).map(s=>svcMap[s]||s).join("・");
 
 const PAYMENT_OPTIONS = [
@@ -1724,10 +1732,17 @@ function ScheduleModal({clients,defaultDate,currentUser,staffList,onSave,onClose
         </div>
         <div style={{marginBottom:8}}>
           <label style={S.label}>支援内容（複数可）</label>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:6}}>
             {SERVICE_OPTIONS.map(({key,label})=>{
               const checked=form.services.includes(key);
               return <label key={key} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:20,border:`1px solid ${checked?COLORS.sageDark:COLORS.border}`,background:checked?"#EBF4EE":COLORS.warmWhite,cursor:"pointer",fontSize:11}}><input type="checkbox" checked={checked} onChange={()=>toggleSvc(key)} style={{accentColor:COLORS.sageDark}}/>{label}</label>;
+            })}
+          </div>
+          <div style={{fontSize:10,color:COLORS.muted,marginBottom:4}}>営業予定（料金なし）</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {EVENT_OPTIONS.map(({key,label})=>{
+              const checked=form.services.includes(key);
+              return <label key={key} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:20,border:`1px solid ${checked?"#C49A1A":COLORS.border}`,background:checked?"#FDF3D0":COLORS.warmWhite,cursor:"pointer",fontSize:11}}><input type="checkbox" checked={checked} onChange={()=>toggleSvc(key)} style={{accentColor:"#C49A1A"}}/>{label}</label>;
             })}
           </div>
         </div>
@@ -2593,7 +2608,7 @@ function App(){
                 <div style={S.col}>
                 <label style={S.label}>氏名 *</label>
                 <input style={S.input} placeholder="山田 花子" value={newClient.name} onChange={e=>setNC("name",e.target.value)}/>
-                <input style={{...S.input,marginTop:4,fontSize:11}} placeholder="ふりがな（やまだ はなこ）" value={newClient.nameKana||""} onChange={e=>setNC("nameKana",e.target.value)}/>
+                <input style={{...S.input,marginTop:4,fontSize:11}} placeholder="ふりがな（やまだ はなこ）" value={newClient.kana||""} onChange={e=>setNC("kana",e.target.value)}/>
               </div>
                 <div style={{width:66}}><label style={S.label}>年齢</label><input style={S.input} placeholder="82" value={newClient.age} onChange={e=>setNC("age",e.target.value)}/></div>
             </div>
@@ -2614,7 +2629,7 @@ function App(){
                 {newClient.birthday&&<span style={{fontSize:12,color:COLORS.sageDark,fontWeight:600,whiteSpace:"nowrap"}}>{newClient.age}歳</span>}
               </div>
             </div>
-              <div style={{marginBottom:8}}><label style={S.label}>ふりがな（並び替えに使用）</label><input style={S.input} placeholder="やまだ はなこ" value={newClient.kana||""} onChange={e=>setNC("kana",e.target.value)}/></div>
+  
               <div style={{marginBottom:8}}><label style={S.label}>住所</label><input style={S.input} value={newClient.address} onChange={e=>setNC("address",e.target.value)}/></div>
               <div style={{marginBottom:8}}><label style={S.label}>既往歴・診断名</label><input style={S.input} value={newClient.diagnosis} onChange={e=>setNC("diagnosis",e.target.value)}/></div>
               <div style={{marginBottom:8}}><label style={S.label}>緊急連絡先</label><input style={S.input} placeholder="山田 太郎（長男）090-〇〇〇〇" value={newClient.emergency} onChange={e=>setNC("emergency",e.target.value)}/></div>
