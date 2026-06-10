@@ -894,7 +894,7 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
                   <span style={{fontSize:11,color:COLORS.muted}}>分</span>
                   {key==="aroma"&&form.serviceMins[key]&&(
                     <span style={{fontSize:11,color:COLORS.accent,fontWeight:600}}>
-                      +{(Math.ceil(parseInt(form.serviceMins[key])/15)*1000).toLocaleString()}円
+                      +{(Math.ceil(parseInt(form.serviceMins[key])/15)*1200).toLocaleString()}円
                     </span>
                   )}
                 </div>
