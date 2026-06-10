@@ -1291,7 +1291,7 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
             </div>
             {form.distanceKm&&parseFloat(form.distanceKm)>=15&&(
               <div style={{fontSize:11,color:COLORS.accent,marginTop:4}}>
-                自動加算：{parseFloat(form.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(form.distanceKm)-15)/10)*1000}円`}
+                自動加算：{parseFloat(form.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(form.distanceKm)-15)/10)*1200}円`}
               </div>
             )}
           </div>
