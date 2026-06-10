@@ -143,6 +143,7 @@ const SERVICE_OPTIONS = [
   {key:"aroma",        label:"🌸 アロマケア"},
   {key:"cl_plan",      label:"✨ ケアリストプラン"},
   {key:"deco_house",   label:"🏡 でこぼこhouse"},
+  {key:"emergency",    label:"🚨 緊急対応加算 +500円"},
   {key:"other",        label:"📌 その他"},
 ];
 
@@ -173,7 +174,7 @@ const FAMILY_ADDON = [
   {key:"normal", label:"通常加算",price:2000},
   {key:"heavy",  label:"重度加算",price:3000},
 ];
-const svcMap = {indoor:"宅内",errands:"買物代行",outdoor_nocar:"外出(車なし)",outdoor_car:"外出(車あり)",aroma:"アロマ",cl_plan:"CLプラン",deco_house:"でこぼこhouse",deco_event:"でこぼこhouse(営業)",chayu:"茶友",evening_talk:"夕方のお話会",deco_salon:"でこぼこサロン",other:"その他"};
+const svcMap = {indoor:"宅内",errands:"買物代行",outdoor_nocar:"外出(車なし)",outdoor_car:"外出(車あり)",aroma:"アロマ",cl_plan:"CLプラン",deco_house:"でこぼこhouse",emergency:"緊急対応加算",deco_event:"でこぼこhouse(営業)",chayu:"茶友",evening_talk:"夕方のお話会",deco_salon:"でこぼこサロン",other:"その他"};
 const serviceLabel = (svcs)=>(svcs||[]).map(s=>svcMap[s]||s).join("・");
 
 const PAYMENT_OPTIONS = [
@@ -339,6 +340,11 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
       const addonFee=addonType.price*count;
       breakdown.push({label:`👨‍👩‍👧 家族加算（${addonType.label}×${count}名）`,amount:addonFee}); total+=addonFee;
     }
+  }
+
+  // 緊急対応加算
+  if(services.includes("emergency")){
+    breakdown.push({label:"🚨 緊急対応加算",amount:500}); total+=500;
   }
 
   // その他
