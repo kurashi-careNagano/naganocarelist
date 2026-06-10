@@ -264,13 +264,13 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
     breakdown.push({label:`${lbl}（${m}分）`,amount:fee}); total+=fee;
   }
 
-  // アロマケア（他の支援に加算・15分ごと+1,000円）
+  // アロマケア（他の支援に加算・15分ごと+1,200円）
   if(hasA){
     const mRaw=parseInt(serviceMins.aroma)||0;
     const m=round15(mRaw);
     if(m>0){
       const aromaFee=Math.ceil(m/15)*1000;
-      breakdown.push({label:`🌸 アロマケア加算（${m}分 15分×1,000円）`,amount:aromaFee}); total+=aromaFee;
+      breakdown.push({label:`🌸 アロマケア加算（${m}分 15分×1,200円）`,amount:aromaFee}); total+=aromaFee;
     } else {
       breakdown.push({label:"🌸 アロマケア加算（分数未入力）",amount:0});
     }
