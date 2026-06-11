@@ -264,6 +264,17 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
     breakdown.push({label:`${lbl}（${m}分）`,amount:fee}); total+=fee;
   }
 
+      // 買物代行のガソリン代
+    if(hasE){
+      const errandMins=parseInt(serviceMins.errands)||0;
+      const actualMins=errandMins||m;
+      // 基本200円
+      let gasFee=200;
+      // 60分超えたら30分ごとに+100円
+      if(actualMins>60){
+        gasFee+=Math.ceil((actualMins-60)/30)*100;
+      }
+      
   // アロマケア（他の支援に加算・15分ごと+1,200円）
   if(hasA){
     const mRaw=parseInt(serviceMins.aroma)||0;
