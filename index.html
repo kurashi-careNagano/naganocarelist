@@ -262,9 +262,8 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
     else fee=2800+Math.ceil((m-60)/15)*700;
     const lbl=[hasI&&"宅内敷地内",hasE&&"買物等代行"].filter(Boolean).join("・");
     breakdown.push({label:`${lbl}（${m}分）`,amount:fee}); total+=fee;
-  }
 
-      // 買物代行のガソリン代
+    // 買物代行のガソリン代
     if(hasE){
       const errandMins=parseInt(serviceMins.errands)||0;
       const actualMins=errandMins||m;
@@ -274,14 +273,17 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
       if(actualMins>60){
         gasFee+=Math.ceil((actualMins-60)/30)*100;
       }
-      
-  // アロマケア（他の支援に加算・15分ごと+1,200円）
+      breakdown.push({label:`⛽ 買物代行ガソリン代（${actualMins}分）`,amount:gasFee}); total+=gasFee;
+    }
+  }
+
+  // アロマケア（他の支援に加算・15分ごと+1,000円）
   if(hasA){
     const mRaw=parseInt(serviceMins.aroma)||0;
     const m=round15(mRaw);
     if(m>0){
-      const aromaFee=Math.ceil(m/15)*1200;
-      breakdown.push({label:`🌸 アロマケア加算（${m}分 15分×1,200円）`,amount:aromaFee}); total+=aromaFee;
+      const aromaFee=Math.ceil(m/15)*1000;
+      breakdown.push({label:`🌸 アロマケア加算（${m}分 15分×1,000円）`,amount:aromaFee}); total+=aromaFee;
     } else {
       breakdown.push({label:"🌸 アロマケア加算（分数未入力）",amount:0});
     }
@@ -891,7 +893,7 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
               <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"7px 10px",borderRadius:checked&&needsMins?"8px 8px 0 0":8,background:checked?"#EBF4EE":COLORS.warmWhite,border:`1px solid ${checked?COLORS.sageDark:COLORS.border}`}}>
                 <input type="checkbox" checked={checked} onChange={()=>toggleSvc(key)} style={{width:15,height:15,accentColor:COLORS.sageDark}}/>
                 <span style={{fontSize:12,fontWeight:checked?600:400,color:checked?COLORS.sageDark:COLORS.charcoal,flex:1}}>{label}</span>
-                {key==="aroma"&&checked&&<span style={{fontSize:10,color:COLORS.accent}}>15分ごと+1,200円</span>}
+                {key==="aroma"&&checked&&<span style={{fontSize:10,color:COLORS.accent}}>15分ごと+1,000円</span>}
               </label>
               {checked&&needsMins&&(
                 <div style={{padding:"8px 10px",background:"#D8EDE0",borderRadius:"0 0 8px 8px",border:`1px solid ${COLORS.sageDark}`,borderTop:"none",display:"flex",alignItems:"center",gap:8}}>
@@ -905,7 +907,7 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
                   <span style={{fontSize:11,color:COLORS.muted}}>分</span>
                   {key==="aroma"&&form.serviceMins[key]&&(
                     <span style={{fontSize:11,color:COLORS.accent,fontWeight:600}}>
-                      +{(Math.ceil(parseInt(form.serviceMins[key])/15)*1200).toLocaleString()}円
+                      +{(Math.ceil(parseInt(form.serviceMins[key])/15)*1000).toLocaleString()}円
                     </span>
                   )}
                 </div>
@@ -1302,7 +1304,7 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
             </div>
             {form.distanceKm&&parseFloat(form.distanceKm)>=15&&(
               <div style={{fontSize:11,color:COLORS.accent,marginTop:4}}>
-                自動加算：{parseFloat(form.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(form.distanceKm)-15)/10)*1200}円`}
+                自動加算：{parseFloat(form.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(form.distanceKm)-15)/10)*1000}円`}
               </div>
             )}
           </div>
@@ -1377,7 +1379,7 @@ function AssessmentView({client, onUpdate, isPC, currentUser}){
           <label style={S.label}>🚗 送迎遠距離加算</label>
           <div style={{fontSize:isPC?14:13,color:client.distanceKm&&parseFloat(client.distanceKm)>=15?COLORS.accent:COLORS.muted}}>
             {client.distanceKm&&parseFloat(client.distanceKm)>0
-              ?`${client.distanceKm}km（${parseFloat(client.distanceKm)<15?"加算なし":parseFloat(client.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(client.distanceKm)-15)/10)*1200}円`}）`
+              ?`${client.distanceKm}km（${parseFloat(client.distanceKm)<15?"加算なし":parseFloat(client.distanceKm)<20?"+1,000円":`+${Math.ceil((parseFloat(client.distanceKm)-15)/10)*1000}円`}）`
               :"未設定（加算なし）"}
           </div>
         </div>
