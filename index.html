@@ -144,6 +144,7 @@ const SERVICE_OPTIONS = [
   {key:"cl_plan",      label:"✨ ケアリストプラン"},
   {key:"deco_house",   label:"🏡 でこぼこhouse"},
   {key:"emergency",    label:"🚨 緊急対応加算 +500円"},
+  {key:"cancel",       label:"❌ 当日キャンセル料"},
   {key:"other",        label:"📌 その他"},
 ];
 
@@ -174,7 +175,7 @@ const FAMILY_ADDON = [
   {key:"normal", label:"通常加算",price:2000},
   {key:"heavy",  label:"重度加算",price:3000},
 ];
-const svcMap = {indoor:"宅内",errands:"買物代行",outdoor_nocar:"外出(車なし)",outdoor_car:"外出(車あり)",aroma:"アロマ",cl_plan:"CLプラン",deco_house:"でこぼこhouse",emergency:"緊急対応加算",deco_event:"でこぼこhouse(営業)",chayu:"茶友",evening_talk:"夕方のお話会",deco_salon:"でこぼこサロン",other:"その他"};
+const svcMap = {indoor:"宅内",errands:"買物代行",outdoor_nocar:"外出(車なし)",outdoor_car:"外出(車あり)",aroma:"アロマ",cl_plan:"CLプラン",deco_house:"でこぼこhouse",emergency:"緊急対応加算",cancel:"当日キャンセル料",cancel:"当日キャンセル料",deco_event:"でこぼこhouse(営業)",chayu:"茶友",evening_talk:"夕方のお話会",deco_salon:"でこぼこサロン",other:"その他"};
 const serviceLabel = (svcs)=>(svcs||[]).map(s=>svcMap[s]||s).join("・");
 
 const PAYMENT_OPTIONS = [
@@ -358,6 +359,34 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
   // 緊急対応加算
   if(services.includes("emergency")){
     breakdown.push({label:"🚨 緊急対応加算",amount:500}); total+=500;
+  }
+
+  // 当日キャンセル料
+  if(services.includes("cancel")){
+    const cancelType=serviceMins.cancel_type||"cancel_2800";
+    const cancelItem=CANCEL_FEE_OPTIONS.find(c=>c.key===cancelType)||CANCEL_FEE_OPTIONS[1];
+    breakdown.push({label:`❌ 当日キャンセル料（${cancelItem.label}）`,amount:cancelItem.amount});
+    total+=cancelItem.amount;
+  }
+
+  // 当日キャンセル料
+  if(services.includes("cancel")){
+    // 宅内・買物代行・外出支援の予定料金をそのままキャンセル料に（上限2800円）
+    let cancelBase=0;
+    if(hasI||hasE){
+      const m=indoorMins15||totalMin15;
+      if(m<=30) cancelBase=1600;
+      else cancelBase=2800; // 上限2800円
+    }
+    if(hasNC){
+      cancelBase=Math.max(cancelBase,Math.min(outdoorNocarMins15<=60?3000:3000+Math.ceil((outdoorNocarMins15-60)/15)*750, 2800));
+    }
+    if(hasC){
+      cancelBase=Math.max(cancelBase,Math.min(outdoorCarMins15<=60?3000:3000+Math.ceil((outdoorCarMins15-60)/15)*750, 2800));
+    }
+    // サービス未選択の場合は一律2800円
+    if(cancelBase===0) cancelBase=2800;
+    breakdown.push({label:"❌ 当日キャンセル料",amount:cancelBase}); total+=cancelBase;
   }
 
   // その他
@@ -866,6 +895,7 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
   const hasOther=form.services.includes("other");
   const hasAroma=form.services.includes("aroma");
   const hasCLPlan=form.services.includes("cl_plan");
+  const hasCancel=form.services.includes("cancel");
 
   // 分数入力が必要な支援内容
   const minuteKeys=["indoor","errands","outdoor_nocar","outdoor_car","aroma"];
@@ -916,6 +946,18 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
           );
         })}
       </div>
+
+      {hasCancel&&(
+        <div style={{marginBottom:10,padding:"12px 14px",background:"#FFF0F0",borderRadius:8,border:`1px solid ${COLORS.red}`}}>
+          <div style={{fontSize:13,fontWeight:700,color:COLORS.red,marginBottom:6}}>❌ 当日キャンセル料について</div>
+          <div style={{fontSize:12,color:COLORS.charcoal,marginBottom:4}}>予定していたサービスを選択してください。料金がそのままキャンセル料になります。</div>
+          <div style={{fontSize:11,color:COLORS.muted,lineHeight:1.7}}>
+            ・宅内/買物代行：予定料金（上限2,800円）<br/>
+            ・外出支援：一律2,800円<br/>
+            ・サービス未選択：一律2,800円
+          </div>
+        </div>
+      )}
 
       {hasCLPlan&&(
         <div style={{marginBottom:10,padding:"8px 10px",background:COLORS.purpleLight,borderRadius:8,border:`1px solid ${COLORS.purple}`}}>
@@ -1032,6 +1074,24 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
               })()}
             </div>
           )}
+        </div>
+      )}
+
+      {form.services.includes("cancel")&&(
+        <div style={{marginBottom:10,padding:"10px 12px",background:"#FFF0F0",borderRadius:8,border:`1px solid ${COLORS.red}`}}>
+          <div style={{fontSize:12,fontWeight:700,color:COLORS.red,marginBottom:8}}>❌ 当日キャンセル料</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {CANCEL_FEE_OPTIONS.map(opt=>{
+              const checked=(form.serviceMins.cancel_type||"cancel_2800")===opt.key;
+              return(
+                <label key={opt.key} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:8,border:`1px solid ${checked?COLORS.red:COLORS.border}`,background:checked?"#FFF0F0":"white",cursor:"pointer",fontSize:12}}>
+                  <input type="radio" name="cancel_type" checked={checked} onChange={()=>setSvcMin("cancel_type",opt.key)} style={{accentColor:COLORS.red}}/>
+                  <span style={{flex:1}}>{opt.label}</span>
+                  <span style={{fontWeight:700,color:COLORS.red}}>{opt.amount.toLocaleString()}円</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       )}
 
