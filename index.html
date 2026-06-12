@@ -2329,17 +2329,24 @@ function UpcomingWidget({allSchedules, overrides={}}){
     .sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:a.startTime>b.startTime?1:-1)
     .slice(0,5);
 
+  const [selectedSchedule,setSelectedSchedule]=useState(null);
+
   if(upcoming.length===0) return null;
   return(
     <div style={S.card}>
       <div style={S.title}>📅 直近の予定</div>
       {upcoming.map((s,i)=>(
-        <div key={`${s.id}_${s.date}_${i}`} style={{...S.listItem,display:"flex",gap:8,alignItems:"center"}}>
-          <div style={{minWidth:58,background:s.isRecurringInstance?COLORS.greenLight:COLORS.blueLight,borderRadius:7,padding:"4px 3px",textAlign:"center",border:`1px solid ${s.isRecurringInstance?COLORS.green:COLORS.blue}`}}>
+        <div key={`${s.id}_${s.date}_${i}`}
+          onClick={()=>setSelectedSchedule(selectedSchedule?.id===s.id&&selectedSchedule?.date===s.date?null:s)}
+          style={{...S.listItem,display:"flex",gap:8,alignItems:"flex-start",cursor:"pointer",
+            background:selectedSchedule?.id===s.id&&selectedSchedule?.date===s.date?"#EBF4EE":"transparent",
+            borderRadius:8,padding:"8px 6px",transition:"background 0.15s"}}>
+          <div style={{minWidth:58,background:s.isRecurringInstance?COLORS.greenLight:COLORS.blueLight,borderRadius:7,padding:"4px 3px",textAlign:"center",border:`1px solid ${s.isRecurringInstance?COLORS.green:COLORS.blue}`,flexShrink:0}}>
             <div style={{fontSize:10,color:s.isRecurringInstance?COLORS.green:COLORS.blue}}>{s.date.slice(5).replace("-","/")}</div>
             <div style={{fontSize:11,fontWeight:700,color:s.isRecurringInstance?COLORS.green:COLORS.blue}}>{s.startTime}</div>
+            {s.endTime&&<div style={{fontSize:9,color:COLORS.muted}}>〜{s.endTime}</div>}
           </div>
-          <div>
+          <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
               <span style={{fontSize:13,fontWeight:700}}>{s.clientName}</span>
               {s.isRecurringInstance
@@ -2348,7 +2355,30 @@ function UpcomingWidget({allSchedules, overrides={}}){
             </div>
             <div style={{fontSize:11,color:COLORS.sageDark}}>{serviceLabel(s.services)}</div>
             {s.staff&&<div style={{fontSize:10,color:COLORS.muted}}>担当: {s.staff}</div>}
+            {/* タップで詳細展開 */}
+            {selectedSchedule?.id===s.id&&selectedSchedule?.date===s.date&&(
+              <div style={{marginTop:8,padding:"8px 10px",background:"white",borderRadius:8,border:`1px solid ${COLORS.border}`}}>
+                <div style={{fontSize:11,color:COLORS.muted,marginBottom:4}}>📋 詳細</div>
+                <div style={{fontSize:12,marginBottom:3}}>
+                  <span style={{color:COLORS.muted}}>日時：</span>
+                  {s.date}　{s.startTime}{s.endTime?` 〜 ${s.endTime}`:""}
+                </div>
+                <div style={{fontSize:12,marginBottom:3}}>
+                  <span style={{color:COLORS.muted}}>利用者：</span>{s.clientName}
+                </div>
+                {s.staff&&<div style={{fontSize:12,marginBottom:3}}><span style={{color:COLORS.muted}}>担当：</span>{s.staff}</div>}
+                {s.services?.length>0&&(
+                  <div style={{fontSize:12,marginBottom:3}}>
+                    <span style={{color:COLORS.muted}}>内容：</span>
+                    <span style={{color:COLORS.sageDark,fontWeight:600}}>{serviceLabel(s.services)}</span>
+                  </div>
+                )}
+                {s.note&&<div style={{fontSize:12,marginBottom:3}}><span style={{color:COLORS.muted}}>メモ：</span>{s.note}</div>}
+                {s.isRecurringInstance&&<div style={{fontSize:10,color:COLORS.blue,marginTop:4}}>🔁 定期予定</div>}
+              </div>
+            )}
           </div>
+          <div style={{fontSize:11,color:COLORS.muted,alignSelf:"center"}}>{selectedSchedule?.id===s.id&&selectedSchedule?.date===s.date?"▲":"▼"}</div>
         </div>
       ))}
     </div>
