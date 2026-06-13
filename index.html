@@ -367,12 +367,17 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
     breakdown.push({label:"🚨 緊急対応加算",amount:500}); total+=500;
   }
 
-  // 当日キャンセル料
+  // 当日キャンセル料（キャンセルの場合はこれのみ返す）
   if(services.includes("cancel")){
     const cancelType=serviceMins.cancel_type||"cancel_2800";
     const cancelItem=CANCEL_FEE_OPTIONS.find(c=>c.key===cancelType)||CANCEL_FEE_OPTIONS[1];
-    breakdown.push({label:`❌ 当日キャンセル料（${cancelItem.label}）`,amount:cancelItem.amount});
-    total+=cancelItem.amount;
+    return {
+      breakdown:[{label:`❌ 当日キャンセル料（${cancelItem.label}）`,amount:cancelItem.amount}],
+      total:cancelItem.amount,
+      totalMin:0,
+      totalMin15:0,
+      isCancelOnly:true,
+    };
   }
 
   // 当日キャンセル料
@@ -896,7 +901,8 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
   const addOtherItem=()=>setForm(f=>({...f,otherItems:[...f.otherItems,{note:"",fee:""}]}));
   const removeOtherItem=i=>setForm(f=>({...f,otherItems:f.otherItems.filter((_,idx)=>idx!==i)}));
 
-  const fee=calcFee({...form, clientDistanceKm:client?.distanceKm||""});
+  const isCancel=form.services.includes("cancel");
+  const fee=isCancel?calcFee({services:form.services,serviceMins:form.serviceMins,entryTime:"00:00",exitTime:"00:01",otherItems:[]}):calcFee({...form, clientDistanceKm:client?.distanceKm||""});
   const hasCar=form.services.includes("outdoor_car");
   const hasOther=form.services.includes("other");
   const hasAroma=form.services.includes("aroma");
@@ -1187,7 +1193,9 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
         <label htmlFor="fShare" style={{fontSize:11,cursor:"pointer"}}>ご家族にも共有する（写真も共有されます）</label>
       </div>
       <button style={S.btn("primary")} onClick={()=>{
-        if(!form.staff||!form.entryTime){alert("担当者名と入室時刻は必須です");return;}
+        const isCancel=form.services.includes("cancel");
+        if(!form.staff){alert("担当者名は必須です");return;}
+        if(!form.entryTime&&!isCancel){alert("入室時刻を入力してください");return;}
         if(isEditing){
           onSave({...form,fee});
         } else {
