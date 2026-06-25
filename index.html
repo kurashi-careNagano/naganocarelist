@@ -255,9 +255,42 @@ function calcFee({services=[], serviceMins={}, entryTime, exitTime, carKm, other
 
   // ケアリストプラン
   if(hasCL){
-    const clType=serviceMins.cl_plan||"single";
-    const fee=clType==="monthly"?44000:15000;
-    breakdown.push({label:`✨ ケアリストプラン（${clType==="monthly"?"月4回定期":"1回"}）`,amount:fee}); total+=fee;
+    const clCategory=serviceMins.cl_category||"trial"; // trial | regular
+    const clPlanKey=serviceMins.cl_plan_key||"";
+    const clDiscount=!!serviceMins.cl_trial_discount; // 単発：期間限定割引（手動）
+    const clFirstBonus=serviceMins.cl_first_bonus||""; // 定期：初回特典 "first_half" | "two_half" | ""
+
+    const TRIAL_PLANS={
+      trial_60:  {label:"初回60分",  normal:9000,  discount:5400},
+      trial_90:  {label:"初回90分",  normal:12000, discount:7200},
+      trial_120: {label:"通常120分", normal:15000, discount:9000},
+    };
+    const REGULAR_PLANS={
+      reg_90_4:  {label:"90分×月4回",  price:9500},
+      reg_120_4: {label:"120分×月4回", price:11000},
+      reg_120_8: {label:"120分×月8回", price:82000},
+    };
+
+    if(clCategory==="trial"&&TRIAL_PLANS[clPlanKey]){
+      const plan=TRIAL_PLANS[clPlanKey];
+      const fee=clDiscount?plan.discount:plan.normal;
+      breakdown.push({label:`✨ ケアリストプラン・体験/単発（${plan.label}）${clDiscount?"【期間限定割引】":""}`,amount:fee});
+      total+=fee;
+    } else if(clCategory==="regular"&&REGULAR_PLANS[clPlanKey]){
+      const plan=REGULAR_PLANS[clPlanKey];
+      let fee=plan.price;
+      breakdown.push({label:`✨ ケアリストプラン・定期利用（${plan.label}）`,amount:fee});
+      total+=fee;
+      if(clFirstBonus==="first_half"){
+        const bonus=-Math.round(fee*0.5);
+        breakdown.push({label:"🎁 初回特典：初月半額（50%OFF）",amount:bonus});
+        total+=bonus;
+      } else if(clFirstBonus==="two_half"){
+        const bonus=-Math.round(fee*0.5);
+        breakdown.push({label:"🎁 初回特典：6ヶ月以上契約2ヶ月半額（50%OFF）",amount:bonus});
+        total+=bonus;
+      }
+    }
   }
 
   // 宅内・買物代行
@@ -971,21 +1004,91 @@ function RecordForm({client,currentUser,staffList=[],onSave,initialData,isEditin
         </div>
       )}
 
-      {hasCLPlan&&(
-        <div style={{marginBottom:10,padding:"8px 10px",background:COLORS.purpleLight,borderRadius:8,border:`1px solid ${COLORS.purple}`}}>
-          <div style={{fontSize:11,fontWeight:600,color:COLORS.purple,marginBottom:8}}>✨ ケアリストプラン</div>
-          <div style={{display:"flex",gap:8}}>
-            <label style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:20,border:`1px solid ${(form.serviceMins.cl_plan||"single")==="single"?COLORS.purple:COLORS.border}`,background:(form.serviceMins.cl_plan||"single")==="single"?COLORS.purpleLight:"white",cursor:"pointer",fontSize:12}}>
-              <input type="radio" name="cl_type" checked={(form.serviceMins.cl_plan||"single")==="single"} onChange={()=>setSvcMin("cl_plan","single")} style={{accentColor:COLORS.purple}}/>
-              1回 15,000円
-            </label>
-            <label style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:20,border:`1px solid ${form.serviceMins.cl_plan==="monthly"?COLORS.purple:COLORS.border}`,background:form.serviceMins.cl_plan==="monthly"?COLORS.purpleLight:"white",cursor:"pointer",fontSize:12}}>
-              <input type="radio" name="cl_type" checked={form.serviceMins.cl_plan==="monthly"} onChange={()=>setSvcMin("cl_plan","monthly")} style={{accentColor:COLORS.purple}}/>
-              月4回定期 44,000円
-            </label>
+      {hasCLPlan&&(()=>{
+        const clCategory=form.serviceMins.cl_category||"trial";
+        const clPlanKey=form.serviceMins.cl_plan_key||"";
+        const TRIAL_PLANS=[
+          {key:"trial_60",  label:"初回60分",  normal:9000,  discount:5400},
+          {key:"trial_90",  label:"初回90分",  normal:12000, discount:7200},
+          {key:"trial_120", label:"通常120分", normal:15000, discount:9000},
+        ];
+        const REGULAR_PLANS=[
+          {key:"reg_90_4",  label:"90分×月4回",  price:9500},
+          {key:"reg_120_4", label:"120分×月4回", price:11000},
+          {key:"reg_120_8", label:"120分×月8回", price:82000},
+        ];
+        return(
+          <div style={{marginBottom:10,padding:"10px 12px",background:COLORS.purpleLight,borderRadius:8,border:`1px solid ${COLORS.purple}`}}>
+            <div style={{fontSize:12,fontWeight:700,color:COLORS.purple,marginBottom:8}}>✨ ケアリストプラン</div>
+
+            {/* カテゴリ選択 */}
+            <div style={{display:"flex",gap:6,marginBottom:10}}>
+              <label style={{display:"flex",alignItems:"center",gap:5,padding:"6px 14px",borderRadius:20,border:`1px solid ${clCategory==="trial"?COLORS.purple:COLORS.border}`,background:clCategory==="trial"?"white":"transparent",cursor:"pointer",fontSize:12,fontWeight:clCategory==="trial"?700:400}}>
+                <input type="radio" name="cl_category" checked={clCategory==="trial"} onChange={()=>{setSvcMin("cl_category","trial");setSvcMin("cl_plan_key","");}} style={{accentColor:COLORS.purple}}/>
+                🌱 体験/単発利用
+              </label>
+              <label style={{display:"flex",alignItems:"center",gap:5,padding:"6px 14px",borderRadius:20,border:`1px solid ${clCategory==="regular"?COLORS.purple:COLORS.border}`,background:clCategory==="regular"?"white":"transparent",cursor:"pointer",fontSize:12,fontWeight:clCategory==="regular"?700:400}}>
+                <input type="radio" name="cl_category" checked={clCategory==="regular"} onChange={()=>{setSvcMin("cl_category","regular");setSvcMin("cl_plan_key","");}} style={{accentColor:COLORS.purple}}/>
+                📅 定期利用
+              </label>
+            </div>
+
+            {/* 体験/単発プラン */}
+            {clCategory==="trial"&&(
+              <>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
+                  {TRIAL_PLANS.map(p=>(
+                    <label key={p.key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",borderRadius:8,border:`1px solid ${clPlanKey===p.key?COLORS.purple:COLORS.border}`,background:clPlanKey===p.key?"white":"transparent",cursor:"pointer",fontSize:12}}>
+                      <input type="radio" name="cl_plan_key" checked={clPlanKey===p.key} onChange={()=>setSvcMin("cl_plan_key",p.key)} style={{accentColor:COLORS.purple}}/>
+                      <span style={{flex:1}}>{p.label}</span>
+                      <span style={{fontWeight:700,color:COLORS.purple}}>{p.normal.toLocaleString()}円</span>
+                    </label>
+                  ))}
+                </div>
+                <label style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",borderRadius:8,background:"#FFF8E7",border:"1px solid #F0C040",cursor:"pointer",fontSize:12}}>
+                  <input type="checkbox" checked={!!form.serviceMins.cl_trial_discount} onChange={e=>setSvcMin("cl_trial_discount",e.target.checked)} style={{accentColor:"#B07A00"}}/>
+                  🏷️ 期間限定割引を適用（R8.7月・8月）
+                  {clPlanKey&&form.serviceMins.cl_trial_discount&&(()=>{
+                    const p=TRIAL_PLANS.find(x=>x.key===clPlanKey);
+                    return p?<span style={{marginLeft:"auto",fontWeight:700,color:"#B07A00"}}>{p.discount.toLocaleString()}円</span>:null;
+                  })()}
+                </label>
+              </>
+            )}
+
+            {/* 定期利用プラン */}
+            {clCategory==="regular"&&(
+              <>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
+                  {REGULAR_PLANS.map(p=>(
+                    <label key={p.key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",borderRadius:8,border:`1px solid ${clPlanKey===p.key?COLORS.purple:COLORS.border}`,background:clPlanKey===p.key?"white":"transparent",cursor:"pointer",fontSize:12}}>
+                      <input type="radio" name="cl_plan_key" checked={clPlanKey===p.key} onChange={()=>setSvcMin("cl_plan_key",p.key)} style={{accentColor:COLORS.purple}}/>
+                      <span style={{flex:1}}>{p.label}</span>
+                      <span style={{fontWeight:700,color:COLORS.purple}}>{p.price.toLocaleString()}円</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{fontSize:11,color:COLORS.muted,marginBottom:6}}>🎁 初回特典（契約時に一回のみ選択）</div>
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,background:form.serviceMins.cl_first_bonus==="first_half"?"#FFF8E7":"transparent",border:`1px solid ${form.serviceMins.cl_first_bonus==="first_half"?"#F0C040":COLORS.border}`,cursor:"pointer",fontSize:12}}>
+                    <input type="radio" name="cl_first_bonus" checked={form.serviceMins.cl_first_bonus==="first_half"} onChange={()=>setSvcMin("cl_first_bonus","first_half")} style={{accentColor:"#B07A00"}}/>
+                    初月半額（50%OFF）
+                  </label>
+                  <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,background:form.serviceMins.cl_first_bonus==="two_half"?"#FFF8E7":"transparent",border:`1px solid ${form.serviceMins.cl_first_bonus==="two_half"?"#F0C040":COLORS.border}`,cursor:"pointer",fontSize:12}}>
+                    <input type="radio" name="cl_first_bonus" checked={form.serviceMins.cl_first_bonus==="two_half"} onChange={()=>setSvcMin("cl_first_bonus","two_half")} style={{accentColor:"#B07A00"}}/>
+                    6ヶ月以上契約で2ヶ月半額（50%OFF）
+                  </label>
+                  <label style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,background:!form.serviceMins.cl_first_bonus?"#FFF8E7":"transparent",border:`1px solid ${!form.serviceMins.cl_first_bonus?"#F0C040":COLORS.border}`,cursor:"pointer",fontSize:12}}>
+                    <input type="radio" name="cl_first_bonus" checked={!form.serviceMins.cl_first_bonus} onChange={()=>setSvcMin("cl_first_bonus","")} style={{accentColor:"#B07A00"}}/>
+                    特典なし（通常2回目以降など）
+                  </label>
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
+
       {hasCar&&(
         <div style={{marginBottom:10,padding:"8px 10px",background:COLORS.blueLight,borderRadius:8,border:`1px solid #A8C8E8`}}>
           <div style={S.row}>
